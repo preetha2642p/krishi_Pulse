@@ -1,0 +1,1330 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>KRISHI_PULSE — Farm decision support</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<section class="auth-gate" id="authGate" aria-labelledby="loginTitle">
+  <div class="field-grid" aria-hidden="true"></div>
+  <div class="auth-orbit orbit-one">🌱</div>
+  <div class="auth-orbit orbit-two">☀️</div>
+  <div class="auth-orbit orbit-three">💧</div>
+  <div class="field-guide" aria-live="polite">
+    <div class="guide-avatar" aria-hidden="true"><span class="guide-hat">⌒</span><span class="guide-face"><i></i><i></i><b></b></span><span class="guide-body">🌾</span></div>
+    <div class="guide-copy"><strong data-i18n="guideTitle">Field guide</strong><span data-i18n="guideText">Tap the microphone on any field and speak.</span><button class="guide-speak" id="guideSpeak" type="button" data-i18n="talkGuide">Hear guidance</button></div>
+  </div>
+  <div class="auth-panel">
+    <div class="auth-mark" aria-hidden="true">✦</div>
+    <p class="eyebrow" data-i18n="eyebrow">KRISHI_PULSE / FIELD LINK</p>
+    <h1 id="loginTitle" data-i18n="loginTitle">Welcome back to the field.</h1>
+    <p class="auth-copy" data-i18n="loginCopy">Read the pulse of every plot in one calm, clear workspace.</p>
+    <form id="loginForm">
+      <label for="loginUser" data-i18n="fieldOperator">Field operator</label>
+      <input id="loginUser" autocomplete="username" required placeholder="e.g. Anika Rao" data-i18n-placeholder="operatorPlaceholder">
+      <label for="loginPass" data-i18n="accessKey">Access key</label>
+      <input id="loginPass" type="password" autocomplete="current-password" required placeholder="Enter your access key" data-i18n-placeholder="keyPlaceholder">
+      <button class="btn auth-submit" type="submit"><span data-i18n="enterField">Enter the field</span><span aria-hidden="true">→</span></button>
+      <p class="login-note" id="loginNote" data-i18n="loginNote">Demo workspace access · your session stays on this device.</p>
+    </form>
+    <div class="crop-pulse" aria-hidden="true"><span>●</span><i></i><span>●</span><i></i><span>●</span></div>
+  </div>
+</section>
+<div class="app-shell" id="appShell" hidden>
+<header class="masthead">
+  <div class="wrap">
+    <h1 class="brand">KRISHI_PULSE<small data-i18n="brandSub">Soil, weather, crop and sensor data — read together, one plain answer</small></h1>
+    <div class="masthead-actions"><div class="tagline" data-i18n="tagline">"Irrigate, wait, or act on a risk — and here is why."</div><label class="language-picker" for="languageSelect"><span aria-hidden="true">文</span><select id="languageSelect" aria-label="Language"><option value="en">English</option><option value="kn">ಕನ್ನಡ</option><option value="hi">हिन्दी</option><option value="te">తెలుగు</option><option value="ta">தமிழ்</option><option value="ml">മലയാളം</option></select></label><button class="signout" id="signout" type="button" data-i18n="exitField">Exit field ↗</button></div>
+  </div>
+</header>
+
+<main class="wrap layout">
+  <!-- LEFT COLUMN: farm profiles + field monitoring input -->
+  <div>
+    <section class="panel" aria-labelledby="farms-h">
+      <div class="panel-head">
+        <h2 id="farms-h" data-i18n="farmProfile">Farm &amp; crop profile</h2>
+        <p data-i18n="plotsWatched">Plots being watched right now</p>
+      </div>
+      <div class="panel-body">
+        <ul class="farm-list" id="farmList"></ul>
+        <p class="empty-note" id="farmEmpty" hidden data-i18n="emptyFarm">No farm added yet — add one below.</p>
+        <button class="btn secondary" id="newFarmToggle" type="button" style="width:100%" data-i18n="addFarm">+ Add a farm</button>
+
+        <form id="farmForm" hidden>
+          <label for="f_name" data-i18n="farmName">Farm / plot name</label>
+          <input id="f_name" required placeholder="e.g. North field" data-i18n-placeholder="farmNamePlaceholder">
+          <div class="field-row">
+            <div>
+              <label for="f_crop" data-i18n="crop">Crop</label>
+              <select id="f_crop" required></select>
+            </div>
+            <div>
+              <label for="f_soil" data-i18n="soilType">Soil type</label>
+              <select id="f_soil" required></select>
+            </div>
+          </div>
+          <div class="field-row">
+            <div>
+              <label for="f_sow" data-i18n="sowingDate">Sowing date</label>
+              <input id="f_sow" type="date" required>
+            </div>
+            <div>
+              <label for="f_area" data-i18n="areaAcres">Area (acres)</label>
+              <input id="f_area" type="number" step="0.1" min="0.1" value="1" required>
+            </div>
+          </div>
+          <div class="field-row">
+            <div>
+              <label for="f_irrig" data-i18n="irrigationMethod">Irrigation method</label>
+              <select id="f_irrig" required></select>
+            </div>
+            <div>
+              <label for="f_lat" data-i18n="location">Location (lat, lon)</label>
+              <input id="f_lat" placeholder="13.0, 75.8" data-i18n-placeholder="locationPlaceholder">
+            </div>
+          </div>
+          <div class="map-tools"><button class="map-location-btn" id="useLocation" type="button"><span aria-hidden="true">⌖</span><span data-i18n="useLocation">Use my current location</span></button><span class="location-status" id="locationStatus" data-i18n="mapHint">Click the map or allow location access.</span></div>
+          <div class="farm-map" id="farmMap" aria-label="Farm location map"></div>
+          <div class="btn-row">
+            <button class="btn" type="submit" data-i18n="saveFarm">Save farm</button>
+            <button class="btn ghost" type="button" id="cancelFarm" data-i18n="cancel">Cancel</button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <section class="panel" aria-labelledby="reading-h" id="readingPanel" hidden>
+      <div class="panel-head">
+        <h2 id="reading-h" data-i18n="fieldMonitoring">Field-condition monitoring</h2>
+        <p data-i18n="logReading">Log today's sensor or hand-check reading</p>
+      </div>
+      <div class="panel-body">
+        <form id="readingForm">
+          <label for="r_moist" data-i18n="soilMoisture">Soil moisture (%)</label>
+          <input id="r_moist" type="number" step="0.1" required placeholder="e.g. 18.5">
+          <div class="field-row">
+            <div><label for="r_temp">Soil temp (°C)</label><input id="r_temp" type="number" step="0.1"></div>
+            <div><label for="r_ph">pH</label><input id="r_ph" type="number" step="0.1"></div>
+          </div>
+          <div class="field-row">
+            <div><label for="r_ec">EC (dS/m)</label><input id="r_ec" type="number" step="0.1"></div>
+            <div><label for="r_n">Nitrogen (mg/kg)</label><input id="r_n" type="number" step="1"></div>
+          </div>
+          <label for="r_batt">Sensor battery (%)</label>
+          <input id="r_batt" type="number" step="1" placeholder="optional">
+          <button class="btn" type="submit" style="width:100%" data-i18n="logAdvice">Log reading &amp; get today's advice</button>
+          <p class="hint" data-i18n="sensorHint">No sensor yet? Estimate moisture by feel — dry and crumbly is low, cool and holds shape is mid, dripping when squeezed is saturated.</p>
+          <p class="sensor-sync" id="sensorSync" aria-live="polite">Select a farm to sync its latest sensor values.</p>
+        </form>
+      </div>
+    </section>
+
+    <section class="panel sensor-lab" aria-labelledby="sensorLabTitle">
+      <div class="panel-head">
+        <h2 id="sensorLabTitle" data-i18n="sensorLabTitle">Virtual sensor lab</h2>
+        <p data-i18n="sensorLabSubtitle">See how field hardware would send data to KRISHI_PULSE</p>
+      </div>
+      <div class="panel-body">
+        <div class="lab-stage" aria-label="Animated virtual sensor data flow">
+          <div class="lab-node soil-node"><span class="node-icon">⌁</span><strong data-i18n="soilProbe">Soil probe</strong><small data-i18n="soilProbeStatus">Moisture + temperature</small></div>
+          <div class="signal-track track-one"><i></i><i></i><i></i></div>
+          <div class="lab-node gateway-node"><span class="node-icon">⌘</span><strong data-i18n="fieldGateway">Field gateway</strong><small data-i18n="gatewayStatus">Collects sensor data</small></div>
+          <div class="signal-track track-two"><i></i><i></i><i></i></div>
+          <div class="lab-node cloud-node"><span class="node-icon">◌</span><strong data-i18n="decisionCloud">Decision engine</strong><small data-i18n="cloudStatus">Rules + weather + crop</small></div>
+        </div>
+        <div class="lab-readings">
+          <div><span data-i18n="virtualMoisture">Moisture</span><strong id="simMoisture">18.5%</strong></div>
+          <div><span data-i18n="virtualTemperature">Temperature</span><strong id="simTemperature">24.0°C</strong></div>
+          <div><span data-i18n="virtualBattery">Battery</span><strong id="simBattery">92%</strong></div>
+        </div>
+        <div class="lab-footer"><span class="lab-live"><i></i><span data-i18n="simulationLive">Simulation live</span></span><div class="lab-actions"><button class="lab-toggle" id="toggleSimulation" type="button" data-i18n="pauseSimulation">Pause simulation</button><button class="lab-toggle lab-expand" id="openProcessView" type="button" data-i18n="viewFullProcess">View full process</button></div></div>
+        <p class="lab-note" data-i18n="sensorLabNote">This is a software model for demonstration. Real sensors can later replace these virtual readings without changing the decision workflow.</p>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- RIGHT COLUMN: the recommendation -->
+  <div id="rightCol">
+    <div id="adviceOutput"><div class="state-msg">Add a farm on the left, then log a soil reading to get today's recommendation.</div></div>
+    <section class="panel pest-panel" aria-labelledby="pest-h" id="pestPanel" hidden>
+      <div class="panel-head"><h2 id="pest-h" data-i18n="pestDetection">Pest detection</h2><p data-i18n="pestSubtitle">Scout the crop, record signs, and get a ranked field check</p></div>
+      <div class="panel-body">
+        <form id="pestForm">
+          <label for="pestCrop" data-i18n="pestCrop">Crop being checked</label><select id="pestCrop" required></select>
+          <fieldset class="symptom-fieldset"><legend data-i18n="fieldSigns">What do you see in the field?</legend><div class="symptom-grid" id="pestSymptoms"><p class="hint" data-i18n="chooseCropSigns">Choose a crop to load field signs.</p></div></fieldset>
+          <label for="pestNotes" data-i18n="scoutNotes">Scout notes</label><textarea id="pestNotes" rows="3" data-i18n-placeholder="pestNotesPlaceholder" placeholder="Where did you find it? How many plants are affected?"></textarea>
+          <div class="photo-section"><div class="photo-section-title"><strong data-i18n="addPhoto">Add photo</strong><small data-i18n="photoReviewHint">Use a field photo for pest review</small></div><div class="photo-actions"><button class="photo-action" id="openCamera" type="button"><span aria-hidden="true">◉</span> <span data-i18n="openCamera">Open camera</span></button><label class="photo-action" for="pestPhoto"><span aria-hidden="true">▣</span> <span data-i18n="chooseDevice">Choose from device</span></label><button class="photo-action" id="requestPhotoStorage" type="button"><span aria-hidden="true">▰</span> <span data-i18n="allowStorage">Allow photo storage</span></button></div><input id="pestPhoto" type="file" accept="image/*" capture="environment" hidden><p class="photo-permission" id="photoPermissionStatus" aria-live="polite" data-i18n="cameraPermissionHint">Camera and device photo access will ask for permission.</p><div class="camera-box" id="cameraBox" hidden><video id="cameraPreview" autoplay playsinline muted></video><div class="camera-actions"><button class="btn" id="capturePhoto" type="button" data-i18n="capturePhoto">Capture photo</button><button class="btn ghost" id="closeCamera" type="button" data-i18n="closeCamera">Close camera</button></div></div></div>
+          <img class="pest-preview" id="pestPreview" alt="Selected field photo preview" hidden><button class="btn pest-submit" type="submit"><span data-i18n="checkLikelyPests">Check for likely pests</span> <span aria-hidden="true">→</span></button>
+        </form><div id="pestResult" class="pest-result" aria-live="polite"></div>
+      </div>
+    </section>
+    <section class="panel" id="historyPanel" hidden><div class="panel-head"><h2 data-i18n="moistureTrend">Moisture trend</h2><p data-i18n="recentReadings">Recent readings for this plot</p></div><div class="panel-body"><div id="trendChart"></div><table class="history-table" id="historyTable" hidden><thead><tr><th data-i18n="historyWhen">When</th><th data-i18n="historyMoisture">Moisture</th><th data-i18n="historyPh">pH</th><th data-i18n="historyEc">EC</th></tr></thead><tbody id="historyBody"></tbody></table></div></section>
+  </div>
+</main>
+
+<section class="process-view" id="processView" hidden aria-labelledby="processViewTitle">
+  <div class="process-backdrop"></div>
+  <div class="agri-background" aria-hidden="true"><span class="agri-sun">☀</span><span class="agri-cloud cloud-a">☁</span><span class="agri-cloud cloud-b">☁</span><span class="agri-rain rain-a">⋮ ⋮ ⋮</span><span class="agri-rain rain-b">⋮ ⋮ ⋮</span><span class="agri-field field-a"></span><span class="agri-field field-b"></span><span class="agri-field field-c"></span><span class="agri-sprout sprout-a">🌱</span><span class="agri-sprout sprout-b">🌾</span></div>
+  <div class="process-window">
+    <div class="process-head"><div><p class="eyebrow" data-i18n="processEyebrow">KRISHI_PULSE / SYSTEM MAP</p><h2 id="processViewTitle" data-i18n="processTitle">How the farm decision works</h2><p data-i18n="processBrief">A virtual sensor observes the field, sends a signal to the gateway, and the decision engine turns it into a simple action.</p></div><button class="process-close" id="closeProcessView" type="button" aria-label="Close" data-i18n="closeProcess">Close ×</button></div>
+    <div class="process-flow" aria-label="Full screen animated software and hardware process">
+      <article class="process-node process-probe"><span class="process-glyph">⌁</span><strong data-i18n="processProbe">1. Sense</strong><p data-i18n="processProbeText">Soil moisture, temperature, battery</p></article>
+      <span class="process-arrow"><i></i><i></i><i></i></span>
+      <article class="process-node process-gateway"><span class="process-glyph">⌘</span><strong data-i18n="processGateway">2. Send</strong><p data-i18n="processGatewayText">The field gateway collects the signal</p></article>
+      <span class="process-arrow"><i></i><i></i><i></i></span>
+      <article class="process-node process-engine"><span class="process-glyph">◌</span><strong data-i18n="processEngine">3. Understand</strong><p data-i18n="processEngineText">Rules combine crop, soil and weather</p></article>
+      <span class="process-arrow"><i></i><i></i><i></i></span>
+      <article class="process-node process-answer"><span class="process-glyph">✓</span><strong data-i18n="processAnswer">4. Advise</strong><p data-i18n="processAnswerText">Irrigate, wait, or act on a risk</p></article>
+    </div>
+    <div class="process-brief-grid"><div><strong data-i18n="processToday">Today’s model</strong><span data-i18n="processTodayText">Virtual values change every few seconds to show how a real device would behave.</span></div><div><strong data-i18n="processReady">Ready for hardware</strong><span data-i18n="processReadyText">When physical sensors are available, they can replace the simulator without changing the app workflow.</span></div><div><strong data-i18n="processHuman">Made for people</strong><span data-i18n="processHumanText">The final answer stays short and practical for field decisions.</span></div></div>
+  </div>
+</section>
+
+<footer class="credit">KRISHI_PULSE — a decision-support prototype for smallholder farms, built by Preetham Acharya DR</footer>
+<div class="toast" id="toast"></div>
+</div>
+
+<script>
+const LEAFLET_URL = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
+const API = "/api";
+let CATALOG = null, FARMS = [], CURRENT = null, FARM_MAP = null, FARM_MARKER = null, CURRENT_ADVICE = null, CURRENT_LANGUAGE = "en", PHOTO_FILE = null, CAMERA_STREAM = null, SENSOR_TIMER = null, SIMULATION_RUNNING = true;
+const $ = (s) => document.querySelector(s);
+const VOICE_LOCALES = {en:"en-IN", kn:"kn-IN", hi:"hi-IN"};
+let ACTIVE_RECOGNITION = null;
+
+function voiceText(key, fallback){
+  return (I18N[CURRENT_LANGUAGE] && I18N[CURRENT_LANGUAGE][key]) || fallback;
+}
+function speechLocale(){ return VOICE_LOCALES[CURRENT_LANGUAGE] || "en-IN"; }
+function cleanSpokenValue(value, input){
+  const raw = value.trim();
+  if(input.type === "number"){
+    const words = raw.toLowerCase().replace(/point/g, ".").replace(/,/g, "");
+    const numeric = words.match(/-?\d+(?:\.\d+)?/);
+    return numeric ? numeric[0] : raw;
+  }
+  if(input.tagName === "SELECT"){
+    const option = [...input.options].find(item => item.textContent.toLowerCase().includes(raw.toLowerCase()) || raw.toLowerCase().includes(item.textContent.toLowerCase()));
+    return option ? option.value : raw;
+  }
+  return raw;
+}
+function speak(text){
+  if(!("speechSynthesis" in window)) return;
+  window.speechSynthesis.cancel();
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.lang = speechLocale();
+  utterance.rate = .9;
+  window.speechSynthesis.speak(utterance);
+}
+function startVoiceInput(input, button){
+  const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if(!Recognition){
+    toast(voiceText("voiceUnavailable", "Voice input is not available in this browser."));
+    return;
+  }
+  if(ACTIVE_RECOGNITION){ ACTIVE_RECOGNITION.stop(); ACTIVE_RECOGNITION = null; }
+  const recognition = new Recognition();
+  recognition.lang = speechLocale(); recognition.interimResults = false; recognition.maxAlternatives = 1;
+  ACTIVE_RECOGNITION = recognition; button.classList.add("listening");
+  recognition.onresult = event => {
+    const spoken = event.results[0][0].transcript;
+    input.value = cleanSpokenValue(spoken, input);
+    input.dispatchEvent(new Event("input", {bubbles:true}));
+    input.dispatchEvent(new Event("change", {bubbles:true}));
+    input.focus();
+  };
+  recognition.onerror = () => toast(voiceText("voiceTryAgain", "I could not hear that. Please try again."));
+  recognition.onend = () => { button.classList.remove("listening"); if(ACTIVE_RECOGNITION === recognition) ACTIVE_RECOGNITION = null; };
+  recognition.start();
+}
+function addVoiceInputs(){
+  const fields = [...document.querySelectorAll("input, select, textarea")].filter(input => !["password", "file", "hidden", "checkbox", "radio"].includes(input.type) && !input.closest(".language-picker"));
+  fields.forEach(input => {
+    if(input.parentElement.classList.contains("voice-field")) return;
+    const wrapper = document.createElement("span"); wrapper.className = "voice-field";
+    input.parentNode.insertBefore(wrapper, input); wrapper.appendChild(input); input.classList.add("voice-input");
+    const button = document.createElement("button");
+    button.type = "button"; button.className = "voice-button"; button.innerHTML = "<span aria-hidden=\"true\">🎙</span>";
+    button.title = voiceText("speakField", "Speak this field"); button.setAttribute("aria-label", button.title);
+    button.addEventListener("click", () => startVoiceInput(input, button)); wrapper.appendChild(button);
+  });
+}
+function updateSimulation(){
+  const moisture = 18.5 + Math.sin(Date.now() / 2600) * 1.7;
+  const temperature = 24 + Math.sin(Date.now() / 4200) * 1.2;
+  const battery = 92 - ((Date.now() / 180000) % 8);
+  $("#simMoisture").textContent = `${moisture.toFixed(1)}%`;
+  $("#simTemperature").textContent = `${temperature.toFixed(1)}°C`;
+  $("#simBattery").textContent = `${battery.toFixed(0)}%`;
+}
+function setSimulation(running){
+  SIMULATION_RUNNING = running;
+  const button = $("#toggleSimulation");
+  if(!button) return;
+  button.textContent = voiceText(running ? "pauseSimulation" : "resumeSimulation", running ? "Pause simulation" : "Resume simulation");
+  $(".sensor-lab").classList.toggle("simulation-paused", !running);
+  if(running){ updateSimulation(); SENSOR_TIMER = setInterval(updateSimulation, 1400); }
+  else if(SENSOR_TIMER){ clearInterval(SENSOR_TIMER); SENSOR_TIMER = null; }
+}
+function bootSimulation(){
+  updateSimulation();
+  $("#toggleSimulation").addEventListener("click", () => setSimulation(!SIMULATION_RUNNING));
+  setSimulation(true);
+}
+function closeProcessView(){
+  $("#processView").hidden = true;
+  document.body.classList.remove("process-open");
+}
+$("#openProcessView").addEventListener("click", () => {
+  $("#processView").hidden = false;
+  document.body.classList.add("process-open");
+});
+$("#closeProcessView").addEventListener("click", closeProcessView);
+document.addEventListener("keydown", event => { if(event.key === "Escape" && !$("#processView").hidden) closeProcessView(); });
+
+function toast(msg){
+  const t = $("#toast"); t.textContent = msg; t.classList.add("show");
+  clearTimeout(toast._h); toast._h = setTimeout(()=>t.classList.remove("show"), 2600);
+}
+const I18N = {
+  en: {
+    eyebrow: "KRISHI_PULSE / FIELD LINK",
+    loginTitle: "Welcome back to the field.",
+    loginCopy: "Read the pulse of every plot in one calm, clear workspace.",
+    guideTitle: "Field guide",
+    guideText: "Tap the microphone on any field and speak.",
+    talkGuide: "Hear guidance",
+    speakField: "Speak this field",
+    voiceUnavailable: "Voice input is not available in this browser.",
+    voiceTryAgain: "I could not hear that. Please try again.",
+    guideSpeech: "Choose a field, tap the microphone, and speak your answer. I will fill the form for you.",
+    sensorLabTitle: "Virtual sensor lab",
+    sensorLabSubtitle: "See how field hardware would send data to KRISHI_PULSE",
+    soilProbe: "Soil probe",
+    soilProbeStatus: "Moisture + temperature",
+    fieldGateway: "Field gateway",
+    gatewayStatus: "Collects sensor data",
+    decisionCloud: "Decision engine",
+    cloudStatus: "Rules + weather + crop",
+    virtualMoisture: "Moisture",
+    virtualTemperature: "Temperature",
+    virtualBattery: "Battery",
+    simulationLive: "Simulation live",
+    pauseSimulation: "Pause simulation",
+    resumeSimulation: "Resume simulation",
+    sensorLabNote: "This is a software model for demonstration. Real sensors can later replace these virtual readings without changing the decision workflow.",
+    viewFullProcess: "View full process",
+    processEyebrow: "KRISHI_PULSE / SYSTEM MAP",
+    processTitle: "How the farm decision works",
+    processBrief: "A virtual sensor observes the field, sends a signal to the gateway, and the decision engine turns it into a simple action.",
+    closeProcess: "Close ×",
+    processProbe: "1. Sense",
+    processProbeText: "Soil moisture, temperature, battery",
+    processGateway: "2. Send",
+    processGatewayText: "The field gateway collects the signal",
+    processEngine: "3. Understand",
+    processEngineText: "Rules combine crop, soil and weather",
+    processAnswer: "4. Advise",
+    processAnswerText: "Irrigate, wait, or act on a risk",
+    processToday: "Today's model",
+    processTodayText: "Virtual values change every few seconds to show how a real device would behave.",
+    processReady: "Ready for hardware",
+    processReadyText: "When physical sensors are available, they can replace the simulator without changing the app workflow.",
+    processHuman: "Made for people",
+    processHumanText: "The final answer stays short and practical for field decisions.",
+    fieldOperator: "Field operator",
+    accessKey: "Access key",
+    enterField: "Enter the field",
+    loginNote: "Demo workspace access · your session stays on this device.",
+    brandSub: "Soil, weather, crop and sensor data — read together, one plain answer",
+    tagline: "\"Irrigate, wait, or act on a risk — and here is why.\"",
+    exitField: "Exit field ↗",
+    farmProfile: "Farm & crop profile",
+    plotsWatched: "Plots being watched right now",
+    addFarm: "+ Add a farm",
+    farmName: "Farm / plot name",
+    crop: "Crop",
+    soilType: "Soil type",
+    sowingDate: "Sowing date",
+    areaAcres: "Area (acres)",
+    irrigationMethod: "Irrigation method",
+    location: "Location (lat, lon)",
+    useLocation: "Use my current location",
+    mapHint: "Click the map or allow location access.",
+    saveFarm: "Save farm",
+    cancel: "Cancel",
+    fieldMonitoring: "Field-condition monitoring",
+    logReading: "Log today's sensor or hand-check reading",
+    soilMoisture: "Soil moisture (%)",
+    logAdvice: "Log reading & get today's advice",
+    sensorHint: "No sensor yet? Estimate moisture by feel — dry and crumbly is low, cool and holds shape is mid, dripping when squeezed is saturated.",
+    moistureTrend: "Moisture trend",
+    recentReadings: "Recent readings for this plot",
+    farmNamePlaceholder: "e.g. North field",
+    operatorPlaceholder: "e.g. Anika Rao",
+    keyPlaceholder: "Enter your access key",
+    locationPlaceholder: "13.0, 75.8",
+    pestDetection: "Pest detection",
+    pestSubtitle: "Scout the crop, record signs, and get a ranked field check",
+    pestCrop: "Crop being checked",
+    fieldSigns: "What do you see in the field?",
+    chooseCropSigns: "Choose a crop to load field signs.",
+    scoutNotes: "Scout notes",
+    pestNotesPlaceholder: "Where did you find it? How many plants are affected?",
+    addPhoto: "Add photo",
+    photoReviewHint: "Use a field photo for pest review",
+    openCamera: "Open camera",
+    chooseDevice: "Choose from device",
+    allowStorage: "Allow photo storage",
+    cameraPermissionHint: "Camera and device photo access will ask for permission.",
+    capturePhoto: "Capture photo",
+    closeCamera: "Close camera",
+    checkLikelyPests: "Check for likely pests",
+    photoStorageAllowed: "Persistent photo storage is allowed on this device.",
+    photoStorageFallback: "Device photo access is ready through the picker; the browser did not grant persistent storage.",
+    photoStorageUnavailable: "Storage permission is unavailable here; use Choose from device.",
+    historyWhen: "When",
+    historyMoisture: "Moisture",
+    historyPh: "pH",
+    historyEc: "EC",
+    harmfulEffect: "Harmful effect",
+    fieldCheck: "FIELD CHECK",
+    likelyMatch: "likely match",
+    noCloseMatch: "No close match yet.",
+    inspectAgain: "Inspect both sides of leaves, stems, roots, and fruit again. Add another sign and check with your local extension officer.",
+    matchedSigns: "Matched",
+    photoReady: "Photo ready",
+    cameraUnavailable: "Camera access is unavailable. Choose a photo from your device.",
+    cameraGranted: "Camera access granted. Frame the plant and capture a photo.",
+    cameraDenied: "Camera permission was not granted. Choose a photo from your device instead.",
+    emptyFarm: "No farm added yet — add one below.",
+    noReading: "Add a farm on the left, then log a soil reading to get today's recommendation.",
+    fieldProfileSaved: "FIELD PROFILE SAVED",
+    firstReading: "Give us one soil moisture reading and KRISHI_PULSE will calculate today's irrigation, wait, or risk advice.",
+    logFirstReading: "Log the first reading",
+    stateReady: "Your new farm is ready.",
+    syncPrompt: "Select a farm to sync its latest sensor values.",
+    syncLatest: "Auto-synced latest sensor reading: {ts}. Check values before logging a new reading.",
+    noSensorReading: "No sensor reading yet. Enter a hand-check or connect a sensor."
+  },
+  kn: {
+    eyebrow: "KRISHI_PULSE / ಫೀಲ್ಡ್ ಲಿಂಕ್",
+    loginTitle: "ಹೊಲಕ್ಕೆ ಮತ್ತೆ ಸ್ವಾಗತ.",
+    loginCopy: "ಪ್ರತಿ ಜಮೀನಿನ ಸ್ಥಿತಿಯನ್ನು ಒಂದೇ ಸರಳ ಕಾರ್ಯಸ್ಥಳದಲ್ಲಿ ನೋಡಿ.",
+    guideTitle: "ಹೊಲದ ಮಾರ್ಗದರ್ಶಿ",
+    guideText: "ಯಾವುದೇ ಕ್ಷೇತ್ರದ ಮೈಕ್ರೊಫೋನ್ ಒತ್ತಿ ಮಾತನಾಡಿ.",
+    talkGuide: "ಮಾರ್ಗದರ್ಶನ ಕೇಳಿ",
+    speakField: "ಈ ಕ್ಷೇತ್ರದಲ್ಲಿ ಮಾತನಾಡಿ",
+    voiceUnavailable: "ಈ ಬ್ರೌಸರ್‌ನಲ್ಲಿ ಧ್ವನಿ ಇನ್‌ಪುಟ್ ಲಭ್ಯವಿಲ್ಲ.",
+    voiceTryAgain: "ನಿಮ್ಮ ಮಾತು ಕೇಳಿಸಲಿಲ್ಲ. ದಯವಿಟ್ಟು ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.",
+    guideSpeech: "ಒಂದು ಕ್ಷೇತ್ರ ಆಯ್ಕೆಮಾಡಿ, ಮೈಕ್ರೊಫೋನ್ ಒತ್ತಿ ಮತ್ತು ಮಾತನಾಡಿ. ನಾನು ಫಾರ್ಮ್ ಅನ್ನು ತುಂಬುತ್ತೇನೆ.",
+    sensorLabTitle: "ವರ್ಚುವಲ್ ಸೆನ್ಸರ್ ಪ್ರಯೋಗಾಲಯ",
+    sensorLabSubtitle: "ಹೊಲದ ಹಾರ್ಡ್‌ವೇರ್ KRISHI_PULSE ಗೆ ಮಾಹಿತಿ ಹೇಗೆ ಕಳುಹಿಸುತ್ತದೆ ನೋಡಿ",
+    soilProbe: "ಮಣ್ಣಿನ ಸೆನ್ಸರ್",
+    soilProbeStatus: "ತೇವಾಂಶ + ತಾಪಮಾನ",
+    fieldGateway: "ಹೊಲದ ಗೇಟ್‌ವೇ",
+    gatewayStatus: "ಸೆನ್ಸರ್ ಮಾಹಿತಿ ಸಂಗ್ರಹಿಸುತ್ತದೆ",
+    decisionCloud: "ನಿರ್ಧಾರ ಎಂಜಿನ್",
+    cloudStatus: "ನಿಯಮಗಳು + ಹವಾಮಾನ + ಬೆಳೆ",
+    virtualMoisture: "ತೇವಾಂಶ",
+    virtualTemperature: "ತಾಪಮಾನ",
+    virtualBattery: "ಬ್ಯಾಟರಿ",
+    simulationLive: "ಸಿಮ್ಯುಲೇಶನ್ ಚಾಲನೆಯಲ್ಲಿದೆ",
+    pauseSimulation: "ಸಿಮ್ಯುಲೇಶನ್ ವಿರಾಮ",
+    resumeSimulation: "ಸಿಮ್ಯುಲೇಶನ್ ಪುನರಾರಂಭಿಸಿ",
+    sensorLabNote: "ಇದು ಪ್ರದರ್ಶನಕ್ಕಾಗಿ ಸಾಫ್ಟ್‌ವೇರ್ ಮಾದರಿ. ನಂತರ ನಿಜವಾದ ಸೆನ್ಸರ್‌ಗಳನ್ನು ಸೇರಿಸಿದರೂ ನಿರ್ಧಾರ ಪ್ರಕ್ರಿಯೆ ಬದಲಾಗುವುದಿಲ್ಲ.",
+    viewFullProcess: "ಪೂರ್ಣ ಪ್ರಕ್ರಿಯೆ ನೋಡಿ",
+    processEyebrow: "KRISHI_PULSE / ಸಿಸ್ಟಮ್ ನಕ್ಷೆ",
+    processTitle: "ಹೊಲದ ನಿರ್ಧಾರ ಹೇಗೆ ಕೆಲಸ ಮಾಡುತ್ತದೆ",
+    processBrief: "ವರ್ಚುವಲ್ ಸೆನ್ಸರ್ ಹೊಲವನ್ನು ಗಮನಿಸಿ, ಗೇಟ್‌ವೇಗೆ ಸಂಕೇತ ಕಳುಹಿಸುತ್ತದೆ; ನಿರ್ಧಾರ ಎಂಜಿನ್ ಅದನ್ನು ಸರಳ ಕ್ರಮವಾಗಿ ಬದಲಾಯಿಸುತ್ತದೆ.",
+    closeProcess: "ಮುಚ್ಚಿ ×",
+    processProbe: "1. ಗಮನಿಸಿ",
+    processProbeText: "ಮಣ್ಣಿನ ತೇವಾಂಶ, ತಾಪಮಾನ, ಬ್ಯಾಟರಿ",
+    processGateway: "2. ಕಳುಹಿಸಿ",
+    processGatewayText: "ಹೊಲದ ಗೇಟ್‌ವೇ ಸಂಕೇತವನ್ನು ಸಂಗ್ರಹಿಸುತ್ತದೆ",
+    processEngine: "3. ಅರ್ಥಮಾಡಿಕೊಳ್ಳಿ",
+    processEngineText: "ನಿಯಮಗಳು ಬೆಳೆ, ಮಣ್ಣು ಮತ್ತು ಹವಾಮಾನವನ್ನು ಸೇರಿಸುತ್ತವೆ",
+    processAnswer: "4. ಸಲಹೆ ನೀಡಿ",
+    processAnswerText: "ನೀರು ಹಾಯಿಸಿ, ಕಾಯಿರಿ ಅಥವಾ ಅಪಾಯದ ಮೇಲೆ ಕ್ರಮ ಕೈಗೊಳ್ಳಿ",
+    processToday: "ಇಂದಿನ ಮಾದರಿ",
+    processTodayText: "ನಿಜವಾದ ಸಾಧನ ಹೇಗೆ ಕೆಲಸ ಮಾಡುತ್ತದೆ ತೋರಿಸಲು ವರ್ಚುವಲ್ ಮೌಲ್ಯಗಳು ಕೆಲವು ಸೆಕೆಂಡುಗಳಿಗೆ ಬದಲಾಗುತ್ತವೆ.",
+    processReady: "ಹಾರ್ಡ್‌ವೇರ್‌ಗೆ ಸಿದ್ಧ",
+    processReadyText: "ನಿಜವಾದ ಸೆನ್ಸರ್‌ಗಳು ಸಿದ್ಧವಾದಾಗ ಅವುಗಳನ್ನು ಸೇರಿಸಬಹುದು; ಆಪ್‌ನ ಪ್ರಕ್ರಿಯೆ ಬದಲಾಗುವುದಿಲ್ಲ.",
+    processHuman: "ಜನರಿಗಾಗಿ ನಿರ್ಮಿಸಲಾಗಿದೆ",
+    processHumanText: "ಕೊನೆಯ ಉತ್ತರ ಹೊಲದ ನಿರ್ಧಾರಗಳಿಗೆ ಚಿಕ್ಕದಾಗಿ ಮತ್ತು ಉಪಯುಕ್ತವಾಗಿ ಇರುತ್ತದೆ.",
+    fieldOperator: "ಹೊಲ ನಿರ್ವಾಹಕರು",
+    accessKey: "ಪ್ರವೇಶ ಕೀಲಿ",
+    enterField: "ಹೊಲಕ್ಕೆ ಪ್ರವೇಶಿಸಿ",
+    loginNote: "ಡೆಮೊ ಕಾರ್ಯಸ್ಥಳ · ನಿಮ್ಮ ಸೆಷನ್ ಈ ಸಾಧನದಲ್ಲೇ ಇರುತ್ತದೆ.",
+    brandSub: "ಮಣ್ಣು, ಹವಾಮಾನ, ಬೆಳೆ ಮತ್ತು ಸೆನ್ಸರ್ ಮಾಹಿತಿಯನ್ನು ಒಟ್ಟಿಗೆ ಓದಿ",
+    tagline: "\"ನೀರಾವರಿ, ಕಾಯುವಿಕೆ ಅಥವಾ ಅಪಾಯದ ಕ್ರಮ — ಕಾರಣದೊಂದಿಗೆ.\"",
+    exitField: "ಹೊಲದಿಂದ ನಿರ್ಗಮಿಸಿ ↗",
+    farmProfile: "ಜಮೀನು ಮತ್ತು ಬೆಳೆ ವಿವರ",
+    plotsWatched: "ಈಗ ಗಮನದಲ್ಲಿರುವ ಜಮೀನುಗಳು",
+    addFarm: "+ ಜಮೀನು ಸೇರಿಸಿ",
+    farmName: "ಜಮೀನು / ಸ್ಥಳದ ಹೆಸರು",
+    crop: "ಬೆಳೆ",
+    soilType: "ಮಣ್ಣಿನ ವಿಧ",
+    sowingDate: "ಬಿತ್ತನೆ ದಿನಾಂಕ",
+    areaAcres: "ವಿಸ್ತೀರ್ಣ (ಎಕರೆ)",
+    irrigationMethod: "ನೀರಾವರಿ ವಿಧಾನ",
+    location: "ಸ್ಥಳ (ಅಕ್ಷಾಂಶ, ರೇಖಾಂಶ)",
+    useLocation: "ನನ್ನ ಪ್ರಸ್ತುತ ಸ್ಥಳ ಬಳಸಿ",
+    mapHint: "ನಕ್ಷೆಯಲ್ಲಿ ಕ್ಲಿಕ್ ಮಾಡಿ ಅಥವಾ ಸ್ಥಳ ಅನುಮತಿಸಿ.",
+    saveFarm: "ಜಮೀನು ಉಳಿಸಿ",
+    cancel: "ರದ್ದು",
+    fieldMonitoring: "ಹೊಲದ ಸ್ಥಿತಿ ಮೇಲ್ವಿಚಾರಣೆ",
+    logReading: "ಇಂದಿನ ಸೆನ್ಸರ್ ಅಥವಾ ಕೈಯಿಂದ ಪರಿಶೀಲನೆ ದಾಖಲಿಸಿ",
+    soilMoisture: "ಮಣ್ಣಿನ ತೇವಾಂಶ (%)",
+    logAdvice: "ದಾಖಲಿಸಿ ಮತ್ತು ಸಲಹೆ ಪಡೆಯಿರಿ",
+    sensorHint: "ಸೆನ್ಸರ್ ಇಲ್ಲವೇ? ಮಣ್ಣಿನ ತೇವಾಂಶವನ್ನು ಸ್ಪರ್ಶದಿಂದ ಅಂದಾಜಿಸಿ.",
+    moistureTrend: "ತೇವಾಂಶದ ಪ್ರವೃತ್ತಿ",
+    recentReadings: "ಈ ಸ್ಥಳದ ಇತ್ತೀಚಿನ ಓದುಗಳು",
+    farmNamePlaceholder: "ಉದಾ. ಉತ್ತರ ಹೊಲ",
+    operatorPlaceholder: "ಉದಾ. ಅನಿಕಾ ರಾವ್",
+    keyPlaceholder: "ನಿಮ್ಮ ಪ್ರವೇಶ ಕೀಲಿ ನಮೂದಿಸಿ",
+    locationPlaceholder: "13.0, 75.8",
+    pestDetection: "ಕೀಟ ಪತ್ತೆ",
+    pestSubtitle: "ಬೆಳೆಗಾಗಿ ಚಿಹ್ನೆ ದಾಖಲಿಸಿ ಮತ್ತು ರೇಂಕುಗೊಳಿಸಿದ ಸ್ಥಳದ ವರದಿ ಪಡೆಯಿರಿ",
+    pestCrop: "ಪರಿಶೀಲಿಸಲಾಗುತ್ತಿರುವ ಬೆಳೆ",
+    fieldSigns: "ಹೊಲದಲ್ಲಿ ನೀವು ಏನನ್ನು ನೋಡುತ್ತಿದ್ದೀರಿ?",
+    chooseCropSigns: "ಬೆಳೆ ಆಯ್ಕೆಮಾಡಿ ಮತ್ತು ಚಿಹ್ನೆಗಳನ್ನು ಲೋಡ್ ಮಾಡಿ.",
+    scoutNotes: "ಸ್ಕೌಟ್ ನೋಟ್ಸ್",
+    pestNotesPlaceholder: "ಅದನ್ನು ಎಲ್ಲಿ ಕಂಡಿರಿ? ಎಷ್ಟು ಮೊక్కಗಳು ಪರಿಣಾಮಿತವಾಗಿವೆ?",
+    addPhoto: "ಫೋಟೋ ಸೇರಿಸಿ",
+    photoReviewHint: "ಕೀಟ ವಿಮರ್ಶೆಗೆ ಫೀಲ್ಡ್ ಫೋಟೋ ಬಳಸಿ",
+    openCamera: "ಕ್ಯಾಮರಾ ತೆರೆಯಿರಿ",
+    chooseDevice: "ಡಿವೈಸ್‌ನಿಂದ ಆಯ್ಕೆಮಾಡಿ",
+    allowStorage: "ಫೋಟೋ ಸಂಗ್ರಹವನ್ನು ಅನುಮತಿಸಿ",
+    cameraPermissionHint: "ಕ್ಯಾಮರಾ ಮತ್ತು ಫೋಟೋ ಪ್ರವೇಶಕ್ಕೆ ಅನುಮತಿ ಕೇಳುತ್ತದೆ.",
+    capturePhoto: "ಫೋಟೋ ತೆಗೆಯಿರಿ",
+    closeCamera: "ಕ್ಯಾಮರಾ ಮುಚ್ಚಿ",
+    checkLikelyPests: "ಸಂಭಾವ್ಯ ಕೀಟಗಳನ್ನು ಪರಿಶೀಲಿಸಿ",
+    photoStorageAllowed: "ಪersistent ಫೋಟೋ ಸಂಗ್ರಹವು ಈ ಸಾಧನದಲ್ಲಿ ಅನುಮತಿಸಲಾಗಿದೆ.",
+    photoStorageFallback: "ಡಿವೈಸ್ ಫೋಟೋ ಪ್ರವೇಶವು ಪಿಕರ್ ಮೂಲಕ ಸಿದ್ಧವಾಗಿದೆ; ಬ್ರೌಸರ್ persistent ಸಂಗ್ರಹವನ್ನು ನೀಡಲಿಲ್ಲ.",
+    photoStorageUnavailable: "ಸಂಗ್ರಹ ಅನುಮತಿ ಇಲ್ಲಿ ಲಭ್ಯವಿಲ್ಲ; 'ಡಿವೈಸ್‌ನಿಂದ ಆಯ್ಕೆಮಾಡಿ' ಬಳಸಿ.",
+    historyWhen: "ಎಲ್ಲಿ",
+    historyMoisture: "ತೇವಾಂಶ",
+    historyPh: "pH",
+    historyEc: "EC",
+    harmfulEffect: "ಹಾನಿಕಾರಕ ಪರಿಣಾಮ",
+    fieldCheck: "ಫೀಲ್ಡ್ ಚೆಕ್",
+    likelyMatch: "ಸಂಭಾವ್ಯ ಹೊಂದಾಣಿಕೆ",
+    noCloseMatch: "ಹತ್ತಿರದ ಹೊಂದಾಣಿಕೆ ಇನ್ನೂ ಇಲ್ಲ.",
+    inspectAgain: "ಎಲೆಗಳ ಎರಡು ಬದಿಗಳು, ಕಾಂಡ, ಬೇರುಗಳು ಮತ್ತು ಫಲಗಳನ್ನು ಮತ್ತೆ ಪರಿಶೀಲಿಸಿ. ಹೆಚ್ಚಿನ ಚಿಹ್ನೆ ಸೇರಿಸಿ ಮತ್ತು ನಿಮ್ಮ ಸ್ಥಳೀಯ ವಿಸ್ತರಣಾಧಿಕಾರಿಯೊಂದಿಗೆ ಪರಿಶೀಲಿಸಿ.",
+    matchedSigns: "ಹೊಂದಾಣಿಕೆ",
+    photoReady: "ಫೋಟೋ ಸಿದ್ಧವಾಗಿದೆ",
+    cameraUnavailable: "ಕ್ಯಾಮರಾ ಪ್ರವೇಶ ಲಭ್ಯವಿಲ್ಲ. ನಿಮ್ಮ ಡಿವೈಸಿನಿಂದ ಫೋಟೋ ಆಯ್ಕೆಮಾಡಿ.",
+    cameraGranted: "ಕ್ಯಾಮರಾ ಪ್ರವೇಶವನ್ನು ಅನುಮತಿಸಲಾಗಿದೆ. ಸಸ್ಯವನ್ನು ಫ್ರೇಮ್ ಮಾಡಿ ಮತ್ತು ಫೋಟೋ ತೆಗೆದುಕೊಳ್ಳಿ.",
+    cameraDenied: "ಕ್ಯಾಮರಾ ಅನುಮತಿ ನೀಡಲಾಗಿಲ್ಲ. ಬದಲಾಗಿ ನಿಮ್ಮ ಸಾಧನದಿಂದ ಫೋಟೋ ಆಯ್ಕೆಮಾಡಿ.",
+    emptyFarm: "ಇನ್ನೂ ಯಾವುದೇ ಜಮೀನು ಸೇರಿಸಿಲ್ಲ — ಕೆಳಗೆ ಸೇರಿಸಿ.",
+    noReading: "ಎಡಭಾಗದಲ್ಲಿ ಜಮೀನು ಸೇರಿಸಿ, ನಂತರ ಮಣ್ಣಿನ ತೇವಾಂಶವನ್ನು ದಾಖಲಿಸಿ ಮತ್ತು ಇಂದಿನ ಸಲಹೆ ಪಡೆಯಿರಿ.",
+    fieldProfileSaved: "ಫೀಲ್ಡ್ ಪ್ರೊಫೈಲ್ ಸೇವ್ ಆಗಿದೆ",
+    firstReading: "ಒಂದು ಮಣ್ಣಿನ ತೇವಾಂಶ ರೀಡಿಂಗ್ ನೀಡಿ; KRISHI_PULSE ಇಂದಿನ ನೀರಾವರಿ, ಕಾಯುವಿಕೆ ಅಥವಾ ಅಪಾಯದ ಸಲಹೆಯನ್ನು ಲೆಕ್ಕಾಚಾರ ಮಾಡುತ್ತದೆ.",
+    logFirstReading: "ಮೊದಲ ರೀಡಿಂಗ್ ದಾಖಲು ಮಾಡಿ",
+    stateReady: "ನಿಮ್ಮ ಹೊಸ ಜಮೀನು ಸಿದ್ಧವಾಗಿದೆ.",
+    syncPrompt: "ಇದರ ಇತ್ತೀಚಿನ ಸೆನ್ಸರ್ ಮೌಲ್ಯಗಳನ್ನು ಸಿಂಕ್ ಮಾಡಲು ಜಮೀನು ಆಯ್ಕೆಮಾಡಿ.",
+    syncLatest: "ಇತ್ತೀಚಿನ ಸೆನ್ಸರ್ ರೀಡಿಂಗ್ ಸಿಂಕ್ ಆಯಿತು: {ts}. ಹೊಸ ರೀಡಿಂಗ್‌ ಮುಂದೆ ಮೌಲ್ಯಗಳನ್ನು ಪರಿಶೀಲಿಸಿ.",
+    noSensorReading: "ಇನ್ನೂ ಯಾವುದೇ ಸೆನ್ಸರ್ ರೀಡಿಂಗ್ ಇಲ್ಲ. ಕೈಯಿಂದ ಪರಿಶೀಲಿಸಿ ಅಥವಾ ಸೆನ್ಸರ್ ಅನ್ನು ಸಂಪರ್ಕಿಸಿ."
+  },
+  hi: {
+    eyebrow: "KRISHI_PULSE / फील्ड लिंक",
+    loginTitle: "खेत में आपका फिर स्वागत है।",
+    loginCopy: "हर खेत की स्थिति एक शांत और स्पष्ट कार्यस्थल में देखें।",
+    guideTitle: "खेत मार्गदर्शक",
+    guideText: "किसी भी फील्ड के माइक्रोफोन पर टैप करके बोलें।",
+    talkGuide: "मार्गदर्शन सुनें",
+    speakField: "इस फील्ड में बोलें",
+    voiceUnavailable: "इस ब्राउज़र में वॉइस इनपुट उपलब्ध नहीं है।",
+    voiceTryAgain: "मैं सुन नहीं पाया। कृपया फिर कोशिश करें।",
+    guideSpeech: "कोई फील्ड चुनें, माइक्रोफोन दबाएं और बोलें। मैं आपके लिए फॉर्म भर दूंगा।",
+    sensorLabTitle: "वर्चुअल सेंसर लैब",
+    sensorLabSubtitle: "देखें कि खेत का हार्डवेयर KRISHI_PULSE को डेटा कैसे भेजेगा",
+    soilProbe: "मिट्टी सेंसर",
+    soilProbeStatus: "नमी + तापमान",
+    fieldGateway: "फील्ड गेटवे",
+    gatewayStatus: "सेंसर डेटा एकत्र करता है",
+    decisionCloud: "निर्णय इंजन",
+    cloudStatus: "नियम + मौसम + फसल",
+    virtualMoisture: "नमी",
+    virtualTemperature: "तापमान",
+    virtualBattery: "बैटरी",
+    simulationLive: "सिमुलेशन चालू है",
+    pauseSimulation: "सिमुलेशन रोकें",
+    resumeSimulation: "सिमुलेशन फिर शुरू करें",
+    sensorLabNote: "यह प्रदर्शन के लिए सॉफ्टवेयर मॉडल है। बाद में असली सेंसर जोड़ने पर भी निर्णय प्रक्रिया नहीं बदलेगी।",
+    viewFullProcess: "पूरी प्रक्रिया देखें",
+    processEyebrow: "KRISHI_PULSE / सिस्टम मानचित्र",
+    processTitle: "खेत का निर्णय कैसे काम करता है",
+    processBrief: "वर्चुअल सेंसर खेत को देखता है, गेटवे को संकेत भेजता है और निर्णय इंजन उसे सरल कार्रवाई में बदलता है।",
+    closeProcess: "बंद करें ×",
+    processProbe: "1. महसूस करें",
+    processProbeText: "मिट्टी की नमी, तापमान, बैटरी",
+    processGateway: "2. भेजें",
+    processGatewayText: "फील्ड गेटवे संकेत एकत्र करता है",
+    processEngine: "3. समझें",
+    processEngineText: "नियम फसल, मिट्टी और मौसम को मिलाते हैं",
+    processAnswer: "4. सलाह दें",
+    processAnswerText: "सिंचाई करें, रुकें या जोखिम पर कार्रवाई करें",
+    processToday: "आज का मॉडल",
+    processTodayText: "असली डिवाइस का व्यवहार दिखाने के लिए वर्चुअल मान कुछ सेकंड में बदलते हैं।",
+    processReady: "हार्डवेयर के लिए तैयार",
+    processReadyText: "भौतिक सेंसर मिलने पर उन्हें जोड़ा जा सकता है और ऐप की प्रक्रिया नहीं बदलेगी।",
+    processHuman: "लोगों के लिए बनाया गया",
+    processHumanText: "अंतिम उत्तर खेत के फैसलों के लिए छोटा और उपयोगी रहता है।",
+    fieldOperator: "फील्ड ऑपरेटर",
+    accessKey: "एक्सेस कुंजी",
+    enterField: "खेत में प्रवेश करें",
+    loginNote: "डेमो कार्यक्षेत्र · आपका सत्र इसी डिवाइस पर रहेगा।",
+    brandSub: "मिट्टी, मौसम, फसल और सेंसर डेटा को साथ पढ़ें",
+    tagline: "\"सिंचाई, प्रतीक्षा या जोखिम पर कार्रवाई — कारण सहित।\"",
+    exitField: "खेत से बाहर ↗",
+    farmProfile: "खेत और फसल प्रोफ़ाइल",
+    plotsWatched: "अभी देखे जा रहे खेत",
+    addFarm: "+ खेत जोड़ें",
+    farmName: "खेत / प्लॉट का नाम",
+    crop: "फसल",
+    soilType: "मिट्टी का प्रकार",
+    sowingDate: "बुवाई की तारीख",
+    areaAcres: "क्षेत्रफल (एकड़)",
+    irrigationMethod: "सिंचाई विधि",
+    location: "स्थान (अक्षांश, देशांतर)",
+    useLocation: "मेरा वर्तमान स्थान उपयोग करें",
+    mapHint: "मानचित्र पर क्लिक करें या स्थान की अनुमति दें।",
+    saveFarm: "खेत सहेजें",
+    cancel: "रद्द करें",
+    fieldMonitoring: "खेत की स्थिति निगरानी",
+    logReading: "आज की सेंसर या हाथ से जांच दर्ज करें",
+    soilMoisture: "मिट्टी की नमी (%)",
+    logAdvice: "रीडिंग दर्ज करें और सलाह लें",
+    sensorHint: "सेंसर नहीं है? स्पर्श से नमी का अनुमान लगाएं।",
+    moistureTrend: "नमी का रुझान",
+    recentReadings: "इस प्लॉट की हाल की रीडिंग",
+    farmNamePlaceholder: "उदा. उत्तर खेत",
+    operatorPlaceholder: "उदा. अनिका राव",
+    keyPlaceholder: "अपना एक्सेस की दर्ज करें",
+    locationPlaceholder: "13.0, 75.8",
+    pestDetection: "कीट पहचान",
+    pestSubtitle: "फसल का पता लगाएं, संकेत दर्ज करें, और रैंक किया गया फील्ड चेक प्राप्त करें",
+    pestCrop: "जाँच की जा रही फसल",
+    fieldSigns: "आप खेत में क्या देख रहे हैं?",
+    chooseCropSigns: "फसल चुनें और फील्ड संकेत लोड करें।",
+    scoutNotes: "स्काउट नोट्स",
+    pestNotesPlaceholder: "आपने इसे कहाँ पाया? कितने पौधे प्रभावित हैं?",
+    addPhoto: "फोटो जोड़ें",
+    photoReviewHint: "कीट समीक्षा के लिए फील्ड फोटो का उपयोग करें",
+    openCamera: "कैमरा खोलें",
+    chooseDevice: "डिवाइस से चुनें",
+    allowStorage: "फोटो संग्रह की अनुमति दें",
+    cameraPermissionHint: "कैमरा और फोटो एक्सेस के लिए अनुमति मांगी जाएगी।",
+    capturePhoto: "फोटो लें",
+    closeCamera: "कैमरा बंद करें",
+    checkLikelyPests: "संभावित कीटों की जाँच करें",
+    photoStorageAllowed: "इस डिवाइस पर persistent फोटो संग्रह की अनुमति है।",
+    photoStorageFallback: "डिवाइस फोटो एक्सेस पिकर के माध्यम से तैयार है; ब्राउज़र ने persistent संग्रह नहीं दिया।",
+    photoStorageUnavailable: "स्टोरेज अनुमति यहाँ उपलब्ध नहीं है; 'डिवाइस से चुनें' का उपयोग करें।",
+    historyWhen: "कब",
+    historyMoisture: "नमी",
+    historyPh: "pH",
+    historyEc: "EC",
+    harmfulEffect: "हानिकारक प्रभाव",
+    fieldCheck: "फील्ड चेक",
+    likelyMatch: "संभावित मिलान",
+    noCloseMatch: "कोई निकट मिलान नहीं है।",
+    inspectAgain: "पत्तियों, तनों, जड़ों और फलों के दोनों तरफ फिर से देखिए। एक और संकेत जोड़ें और अपने स्थानीय विस्तार अधिकारी से मिलें।",
+    matchedSigns: "मिलान",
+    photoReady: "फोटो तैयार है",
+    cameraUnavailable: "कैमरा एक्सेस उपलब्ध नहीं है। अपने डिवाइस से फोटो चुनें।",
+    cameraGranted: "कैमरा एक्सेस granted. पौधे को फ्रेम करें और फोटो लें।",
+    cameraDenied: "कैमरा अनुमति नहीं दी गई। इसके बजाय अपने डिवाइस से फोटो चुनें।",
+    emptyFarm: "अभी कोई खेत नहीं जोड़ा गया — नीचे जोड़ें।",
+    noReading: "बाईं ओर खेत जोड़ें, फिर मिट्टी की रीडिंग दर्ज करें और आज की सलाह देखें।",
+    fieldProfileSaved: "फील्ड प्रोफ़ाइल सेव किया गया",
+    firstReading: "एक मिट्टी की नमी रीडिंग दें और KRISHI_PULSE आज की सिंचाई, प्रतीक्षा या जोखिम सलाह की गणना करेगा।",
+    logFirstReading: "पहली रीडिंग दर्ज करें",
+    stateReady: "आपका नया खेत तैयार है।",
+    syncPrompt: "इसका नवीनतम सेंसर मान सिंक करने के लिए खेत चुनें।",
+    syncLatest: "नवीनतम सेंसर रीडिंग सिंक हुई: {ts}. नई रीडिंग से पहले मान देखें।",
+    noSensorReading: "अभी कोई सेंसर रीडिंग नहीं है। हाथ से जांच करें या सेंसर जोड़ें।"
+  },
+  te: {
+    eyebrow: "KRISHI_PULSE / ఫీల్డ్ లింక్",
+    loginTitle: "పొలానికి తిరిగి స్వాగతం.",
+    loginCopy: "ప్రతి పొలం స్థితిని ఒక ప్రశాంతమైన కార్యస్థలంలో చూడండి.",
+    fieldOperator: "ఫీల్డ్ ఆపరేటర్",
+    accessKey: "యాక్సెస్ కీ",
+    enterField: "పొలంలోకి ప్రవేశించండి",
+    loginNote: "డెమో వర్క్‌స్పేస్ · మీ సెషన్ ఈ పరికరంలోనే ఉంటుంది.",
+    brandSub: "నేల, వాతావరణం, పంట, సెన్సర్ డేటాను కలిసి చదవండి",
+    tagline: "\"నీరు పెట్టండి, వేచి ఉండండి లేదా ప్రమాదంపై చర్య — కారణంతో.\"",
+    exitField: "పొలం నుండి బయటకు ↗",
+    farmProfile: "పొలం మరియు పంట వివరాలు",
+    plotsWatched: "ఇప్పుడు గమనిస్తున్న పొలాలు",
+    addFarm: "+ పొలం జోడించండి",
+    farmName: "పొలం / ప్లాట్ పేరు",
+    crop: "పంట",
+    soilType: "నేల రకం",
+    sowingDate: "విత్తిన తేదీ",
+    areaAcres: "విస్తీర్ణం (ఎకరాలు)",
+    irrigationMethod: "నీటిపారుదల విధానం",
+    location: "స్థానం (అక్షాంశం, రేఖాంశం)",
+    useLocation: "నా ప్రస్తుత స్థానాన్ని ఉపయోగించండి",
+    mapHint: "మ్యాప్‌పై క్లిక్ చేయండి లేదా స్థాన అనుమతి ఇవ్వండి.",
+    saveFarm: "పొలాన్ని సేవ్ చేయండి",
+    cancel: "రద్దు",
+    fieldMonitoring: "పొలం పరిస్థితి పర్యవేక్షణ",
+    logReading: "నేటి సెన్సర్ లేదా చేతి పరిశీలన నమోదు చేయండి",
+    soilMoisture: "నేల తేమ (%)",
+    logAdvice: "రీడింగ్ నమోదు చేసి సలహా పొందండి",
+    sensorHint: "సెన్సర్ లేదా? స్పర్శతో తేమను అంచనా వేయండి.",
+    moistureTrend: "తేమ ధోరణి",
+    recentReadings: "ఈ ప్లాట్ ఇటీవలి రీడింగులు",
+    farmNamePlaceholder: "ఉదా. ఉత్తర పొలం",
+    operatorPlaceholder: "ఉదా. అనిక రావ్",
+    keyPlaceholder: "మీ యాక్సెస్ కీని నమోదు చేయండి",
+    locationPlaceholder: "13.0, 75.8",
+    pestDetection: "పెస్టు గుర్తింపు",
+    pestSubtitle: "పంటను పర్యవేక్షించండి, సంకేతాలను నమోదు చేయండి, మరియు ర్యాంక్ చేయబడిన ఫీల్డ్ చెక్ పొందండి",
+    pestCrop: "చెక చేయబడుతున్న పంట",
+    fieldSigns: "మీరు పొలంలో ఏమి చూస్తున్నారు?",
+    chooseCropSigns: "పంటను ఎంచుకుని సంకేతాలను లోడ్ చేయండి.",
+    scoutNotes: "స్కౌట్ నోట్స్",
+    pestNotesPlaceholder: "దీనిని మీరు ఎక్కడ చూశారు? ఎన్ని మొక్కలు ప్రభావితమయ్యాయి?",
+    addPhoto: "ఫోటో జోడించండి",
+    photoReviewHint: "పెస్ట్ రివ్యూకి ఫీల్డ్ ఫోటో ఉపయోగించండి",
+    openCamera: "క్యామరా తెరవండి",
+    chooseDevice: "డివైస్ నుండి ఎంచుకోండి",
+    allowStorage: "ఫోటో నిల్వను అనుమతించండి",
+    cameraPermissionHint: "క్యామరా మరియు ఫోటో యాక్సెస్ కోసం అనుమతి అడుగుతుంది.",
+    capturePhoto: "ఫోటో తీయండి",
+    closeCamera: "క్యామరాను మూసివేయండి",
+    checkLikelyPests: "సంభావ్య పెస్ట్లను తనిఖీ చేయండి",
+    photoStorageAllowed: "ఈ పరికరంలో persistent ఫోటో నిల్వ అనుమతించబడింది.",
+    photoStorageFallback: "పరికర ఫోటో యాక్సెస్ పికర్ ద్వారా సిద్ధంగా ఉంది; బ్రౌజర్ persistent నిల్వను ఇవ్వలేదు.",
+    photoStorageUnavailable: "నిల్వ అనుమతి ఇక్కడ అందుబాటులో లేదు; 'పరికరం నుండి ఎంచుకోండి' ఉపయోగించండి.",
+    historyWhen: "ఎప్పుడు",
+    historyMoisture: "తేమ",
+    historyPh: "pH",
+    historyEc: "EC",
+    harmfulEffect: "హానికరం అయ్యే ప్రభావం",
+    fieldCheck: "ఫీల్డ్ చెక్",
+    likelyMatch: "సంభావ్య మ్యాచ్",
+    noCloseMatch: "ఇంకా దగ్గరగా సరిపోలిన మాచ్ లేదు.",
+    inspectAgain: "కావులు, కాండం, వేర్లు మరియు పండ్ల రెండు వైపులా మళ్లీ పరిశీలించండి. మరో సంకేతాన్ని జోడించి మీ స్థానిక ఎక్స్టెన్షన్ అధికారితో తనిఖీ చేయండి.",
+    matchedSigns: "మ్యాచ్ చేయబడినవి",
+    photoReady: "ఫోటో సిద్ధంగా ఉంది",
+    cameraUnavailable: "క్యామరా యాక్సెస్ అందుబాటులో లేదు. మీ పరికరం నుండి ఫోటోను ఎంచుకోండి.",
+    cameraGranted: "క్యామరా యాక్సెస్ మంజూరు చేయబడింది. మొక్కను ఫ్రేమ్ చేసి ఫోటో తీయండి.",
+    cameraDenied: "క్యామరా అనుమతి ఇవ్వబడలేదు. బదులుగా మీ పరికరం నుండి ఫోటోను ఎంచుకోండి.",
+    emptyFarm: "ఇంకా ఏ పొలం జోడించబడలేదు — క్రింద జోడించండి.",
+    noReading: "ఎడమవైపు పొలం జోడించండి, తర్వాత మట్టి రీడింగ్ నమోదు చేయండి మరియు ఇందిన సూచన చూడండి.",
+    fieldProfileSaved: "ఫీల్డ్ ప్రొఫైల్ సేవ్ చేయబడింది",
+    firstReading: "ఒక నేల తేమ రీడింగ్ ఇవ్వండి; KRISHI_PULSE ఈ రోజు నీటి, వేచి ఉండటం లేదా ప్రమాదాల సలహాను లెక్కిస్తుంది.",
+    logFirstReading: "మొదటి రీడింగ్ నమోదు చేయండి",
+    stateReady: "మీ కొత్త పొలం సిద్ధంగా ఉంది.",
+    syncPrompt: "వారి తాజా సెన్సర్ విలువలను సింక్ చేయడానికి పొలం ఎంచుకోండి.",
+    syncLatest: "చివరి సెన్సర్ రీడింగ్ సింక్ చేయబడింది: {ts}. కొత్త రీడింగ్‌కు ముందు విలువలను చూడండి.",
+    noSensorReading: "ఇంకా సెన్సర్ రీడింగ్ లేదు. మానవంగా పరిశీలించండి లేదా సెన్సర్‌ను కనెక్ట్ చేయండి."
+  },
+  ta: {
+    eyebrow: "KRISHI_PULSE / ஃபீல்ட் இணைப்பு",
+    loginTitle: "வயலுக்கு மீண்டும் வரவேற்கிறோம்.",
+    loginCopy: "ஒவ்வொரு வயலின் நிலையை ஒரே தெளிவான பணியிடத்தில் பாருங்கள்.",
+    fieldOperator: "வயல் இயக்குநர்",
+    accessKey: "அணுகல் திறவுகோல்",
+    enterField: "வயலுக்குள் செல்லுங்கள்",
+    loginNote: "டெமோ பணியிடம் · உங்கள் அமர்வு இந்த சாதனத்தில் இருக்கும்.",
+    brandSub: "மண், வானிலை, பயிர் மற்றும் சென்சார் தரவை ஒன்றாகப் படியுங்கள்",
+    tagline: "\"நீர்ப்பாசனம், காத்திருப்பு அல்லது ஆபத்தில் நடவடிக்கை — காரணத்துடன்.\"",
+    exitField: "வயலை விட்டு வெளியேறு ↗",
+    farmProfile: "பண்ணை மற்றும் பயிர் விவரம்",
+    plotsWatched: "இப்போது கண்காணிக்கப்படும் வயல்கள்",
+    addFarm: "+ பண்ணை சேர்க்கவும்",
+    farmName: "பண்ணை / நிலத்தின் பெயர்",
+    crop: "பயிர்",
+    soilType: "மண் வகை",
+    sowingDate: "விதைத்த தேதி",
+    areaAcres: "பரப்பளவு (ஏக்கர்)",
+    irrigationMethod: "நீர்ப்பாசன முறை",
+    location: "இடம் (அட்சரேகை, தீர்க்கரேகை)",
+    useLocation: "எனது தற்போதைய இடத்தைப் பயன்படுத்தவும்",
+    mapHint: "வரைபடத்தில் கிளிக் செய்யவும் அல்லது இட அனுமதி வழங்கவும்.",
+    saveFarm: "பண்ணையை சேமி",
+    cancel: "ரத்து",
+    fieldMonitoring: "வயல் நிலை கண்காணிப்பு",
+    logReading: "இன்றைய சென்சார் அல்லது கையால் செய்த சோதனையை பதிவு செய்யவும்",
+    soilMoisture: "மண் ஈரப்பதம் (%)",
+    logAdvice: "பதிவு செய்து ஆலோசனை பெறவும்",
+    sensorHint: "சென்சார் இல்லையா? தொடுதலால் ஈரப்பதத்தை மதிப்பிடுங்கள்.",
+    moistureTrend: "ஈரப்பத போக்கு",
+    recentReadings: "இந்த நிலத்தின் சமீபத்திய பதிவுகள்",
+    farmNamePlaceholder: "எ.கா. வடக்கு வயல்",
+    operatorPlaceholder: "எ.கா. அனிகா ராவ்",
+    keyPlaceholder: "உங்கள் அணுகல் குறியீட்டை உள்ளிடவும்",
+    locationPlaceholder: "13.0, 75.8",
+    pestDetection: "கிருமி கண்டறிதல்",
+    pestSubtitle: "பயிரை கவனித்து, அறிகுறிகளை பதிவு செய்து, தரவரிசைப்படுத்தப்பட்ட வயல் சோதனையைப் பெறுங்கள்",
+    pestCrop: "சோதிக்கப்படும் பயிர்",
+    fieldSigns: "வயலில் நீங்கள் என்ன பார்க்கிறீர்கள்?",
+    chooseCropSigns: "பயிரை தேர்ந்தெடுத்து அறிகுறிகளை ஏற்றுங்கள்.",
+    scoutNotes: "ஸ்கவுட் குறிப்புகள்",
+    pestNotesPlaceholder: "அதை எங்கே கண்டீர்கள்? எத்தனை செடிகள் பாதிக்கப்பட்டன?",
+    addPhoto: "புகைப்படம் சேர்க்கவும்",
+    photoReviewHint: "கிருமி மதிப்பாய்வுக்கு வயல் புகைப்படத்தைப் பயன்படுத்தவும்",
+    openCamera: "கேமராவை திறக்கவும்",
+    chooseDevice: "சாதனத்திலிருந்து தேர்ந்தெடுக்கவும்",
+    allowStorage: "புகைப்பட சேமிப்பை அனுமதிக்கவும்",
+    cameraPermissionHint: "கேமரா மற்றும் புகைப்பட அணுகலுக்கு அனுமதி கோரப்படும்.",
+    capturePhoto: "புகைப்படம் எடுக்கவும்",
+    closeCamera: "கேமராவை மூடவும்",
+    checkLikelyPests: "சாத்தியமான பூச்சிகளை சரிபார்க்கவும்",
+    photoStorageAllowed: "இந்த சாதனத்தில் persistent புகைப்பட சேமிப்பு அனுமதிக்கப்பட்டுள்ளது.",
+    photoStorageFallback: "சாதன புகைப்பட அணுகல் பிக்கர வழியாக தயாராக உள்ளது; உலாவி persistent சேமிப்பை வழங்கவில்லை.",
+    photoStorageUnavailable: "சேமிப்பக அனுமதி இங்கு கிடைக்கவில்லை; 'சாதனத்திலிருந்து தேர்ந்தெடுக்கவும்' பயன்படுத்தவும்.",
+    historyWhen: "எப்போது",
+    historyMoisture: "ஈரப்பதம்",
+    historyPh: "pH",
+    historyEc: "EC",
+    harmfulEffect: "கேடு விளைவிக்கும் விளைவு",
+    fieldCheck: "வயல் சரிபார்ப்பு",
+    likelyMatch: "சாத்தியமான பொருத்தம்",
+    noCloseMatch: "நெருங்கிய பொருத்தம் இன்னும் இல்லை.",
+    inspectAgain: "இலைகளின் இருபுறமும், தண்டுகள், வேர்கள் மற்றும் பழங்களை மீண்டும் பரிசோதிக்கவும். மற்றொரு அறிகுறியை சேர்த்து உங்கள் உள்ளூர் விரிவாக்க அதிகாரியுடன் சரிபார்க்கவும்.",
+    matchedSigns: "பொருத்தப்பட்ட அறிகுறிகள்",
+    photoReady: "புகைப்படம் தயார்",
+    cameraUnavailable: "கேமரா அணுகல் கிடைக்கவில்லை. உங்கள் சாதனத்திலிருந்து புகைப்படத்தை தேர்ந்தெடுக்கவும்.",
+    cameraGranted: "கேமரா அணுகல் வழங்கப்பட்டது. செடியை சட்டத்தில் வைத்து புகைப்படம் எடுக்கவும்.",
+    cameraDenied: "கேமரா அனுமதி வழங்கப்படவில்லை. அதற்குப் பதிலாக உங்கள் சாதனத்திலிருந்து புகைப்படத்தை தேர்ந்தெடுக்கவும்.",
+    emptyFarm: "இன்னும் எந்த பண்ணையும் சேர்க்கப்படவில்லை — கீழே சேர்க்கவும்.",
+    noReading: "இடது புறத்தில் பண்ணை சேர்த்து, மண் ரீடிங்கை பதிவுசெய்யவும் மற்றும் இன்று ஆலோசனைப் பார்க்கவும்.",
+    fieldProfileSaved: "வயல் விவரம் சேமிக்கப்பட்டது",
+    firstReading: "ஒரு மண் ஈரப்பதம் பதிவை வழங்குங்கள்; KRISHI_PULSE இன்று பாசனம், காத்திருப்பு அல்லது ஆபத்து ஆலோசனையை கணக்கிடும்.",
+    logFirstReading: "முதல் பதிவை பதிவு செய்யுங்கள்",
+    stateReady: "உங்கள் புதிய பண்ணை தயார்.",
+    syncPrompt: "அதன் சமீபத்திய சென்சார் மதிப்புகளை ஒத்திசைப்பதற்கு பண்ணையை தேர்ந்தெடுக்கவும்.",
+    syncLatest: "சமீபத்திய சென்சார் பதிவு ஒத்திசைக்கப்பட்டது: {ts}. புதிய பதிவுக்கு முன் மதிப்புகளை சரிபார்க்கவும்.",
+    noSensorReading: "இன்னும் சென்சார் பதிவு இல்லை. கைமுறையாக சரிபார்க்கவும் அல்லது சென்சரை இணைக்கவும்."
+  },
+  ml: {
+    eyebrow: "KRISHI_PULSE / ഫീൽഡ് ലിങ്ക്",
+    loginTitle: "വയലിലേക്ക് വീണ്ടും സ്വാഗതം.",
+    loginCopy: "ഓരോ വയലിന്റെയും സ്ഥിതി ഒരൊറ്റ വ്യക്തമായ പ്രവർത്തനസ്ഥലത്ത് കാണുക.",
+    fieldOperator: "ഫീൽഡ് ഓപ്പറേറ്റർ",
+    accessKey: "ആക്സസ് കീ",
+    enterField: "വയലിലേക്ക് പ്രവേശിക്കുക",
+    loginNote: "ഡെമോ വർക്ക്‌സ്‌പേസ് · നിങ്ങളുടെ സെഷൻ ഈ ഉപകരണത്തിൽ തുടരും.",
+    brandSub: "മണ്ണ്, കാലാവസ്ഥ, വിള, സെൻസർ ഡാറ്റ ഒരുമിച്ച് വായിക്കുക",
+    tagline: "\"നനയ്ക്കുക, കാത്തിരിക്കുക, അല്ലെങ്കിൽ അപകടത്തിൽ പ്രവർത്തിക്കുക — കാരണം സഹിതം.\"",
+    exitField: "വയലിൽ നിന്ന് പുറത്ത് ↗",
+    farmProfile: "കൃഷിയിടവും വിളയും",
+    plotsWatched: "ഇப்போது നിരീക്ഷിക്കുന്ന കൃഷിയിടങ്ങൾ",
+    addFarm: "+ കൃഷിയിടം ചേർക്കുക",
+    farmName: "കൃഷിയിടം / സ്ഥലത്തിന്റെ പേര്",
+    crop: "വിള",
+    soilType: "മണ്ണിന്റെ തരം",
+    sowingDate: "വിതച്ച തീയതി",
+    areaAcres: "വിസ്തീർണ്ണം (ഏക്കർ)",
+    irrigationMethod: "ജലസേചന രീതി",
+    location: "സ്ഥലം (അക്ഷാംശം, രേഖാംശം)",
+    useLocation: "എന്റെ നിലവിലെ സ്ഥലം ഉപയോഗിക്കുക",
+    mapHint: "മാപ്പിൽ ക്ലിക്ക് ചെയ്യുക അല്ലെങ്കിൽ ലൊക്കേഷൻ അനുവദിക്കുക.",
+    saveFarm: "കൃഷിയിടം സംരക്ഷിക്കുക",
+    cancel: "റദ്ദാക്കുക",
+    fieldMonitoring: "കൃഷിയിട നിരീക്ഷണം",
+    logReading: "ഇന്നത്തെ സെൻസർ അല്ലെങ്കിൽ കൈ പരിശോധന രേഖപ്പെടുത്തുക",
+    soilMoisture: "മണ്ണിലെ ഈർപ്പം (%)",
+    logAdvice: "റീഡിംഗ് രേഖപ്പെടുത്തി ഉപദേശം നേടുക",
+    sensorHint: "സെൻസർ ഇല്ലേ? സ്പർശത്തിലൂടെ ഈർപ്പം കണക്കാക്കുക.",
+    moistureTrend: "ഈർപ്പത്തിന്റെ പ്രവണത",
+    recentReadings: "ഈ സ്ഥലത്തെ സമീപകാല റീഡിംഗുകൾ",
+    farmNamePlaceholder: "ഉദാ. വടക്കൻ വയൽ",
+    operatorPlaceholder: "ഉദാ. അനിക റാവു",
+    keyPlaceholder: "നിങ്ങളുടെ ആക്സസ് കീ നൽകുക",
+    locationPlaceholder: "13.0, 75.8",
+    pestDetection: "പുതപ്പ് കണ്ടെത്തൽ",
+    pestSubtitle: "വിളം നിരീക്ഷിച്ച്, അടയാളങ്ങൾ രേഖപ്പെടുത്തുകയും, റാങ്ക് ചെയ്ത ഫീൽഡ് ചെക്ക് നേടുകയും ചെയ്യുക",
+    pestCrop: "പരിശോധിക്കപ്പെടുന്ന വിള",
+    fieldSigns: "വയലിൽ നിങ്ങൾ എന്താണ് കാണുന്നത്?",
+    chooseCropSigns: "വിള തിരഞ്ഞെടുക്കി അടയാളങ്ങൾ ലോഡ് ചെയ്യുക.",
+    scoutNotes: "സ്കൗട്ട് കുറിപ്പുകൾ",
+    pestNotesPlaceholder: "അതെവിടെ കണ്ടു? എത്ര തോട്ടങ്ങൾ ബാധിച്ചത്?",
+    addPhoto: "ഫോട്ടോ ചേർക്കുക",
+    photoReviewHint: "പെസ്റ്റ് റിവ്യൂവിന് ഫീൽഡ് ഫോട്ടോ ഉപയോഗിക്കുക",
+    openCamera: "ക്യാമറ തുറക്കുക",
+    chooseDevice: "ഉപകരണത്തിൽ നിന്ന് തിരഞ്ഞെടുക്കുക",
+    allowStorage: "ഫോട്ടോ സ്റ്റോറേജ് അനുവദിക്കുക",
+    cameraPermissionHint: "ക്യാമറയും ഫോട്ടോ ആക്സസും അനുമതി ആവശ്യപ്പെടും.",
+    capturePhoto: "ഫോട്ടോ എടുക്കുക",
+    closeCamera: "ക്യാമറ അടയ്ക്കുക",
+    checkLikelyPests: "സാധ്യമായ പെസ്റ്റുകൾ പരിശോധിക്കുക",
+    photoStorageAllowed: "ഈ ഉപകരണത്തിൽ persistent ഫോട്ടോ സ്റ്റോറേജ് അനുവദებულია.",
+    photoStorageFallback: "ഉപകരണ ഫോട്ടോ ആക്സസ് പിക്കറിൽ തയ്യാറാണ്; ബ്രൗസർ persistent സ്റ്റോറേജ് നൽകിയില്ല.",
+    photoStorageUnavailable: "സ്റ്റോറേജ് അനുമതി ഇവിടെ ലഭ്യമല്ല; 'ഉപകരണത്തിൽ നിന്ന് തിരഞ്ഞെടുക്കുക' ഉപയോഗിക്കുക.",
+    historyWhen: "എപ്പോഴാണ്",
+    historyMoisture: "ഈർപ്പം",
+    historyPh: "pH",
+    historyEc: "EC",
+    harmfulEffect: "हानികരമായ விளைவு",
+    fieldCheck: "ഫീൽഡ് ചെക്ക്",
+    likelyMatch: "സാധ്യമായ പൊരുത്തം",
+    noCloseMatch: "അടുത്തമുന്നിൽ പൊരുത്തം ഇല്ല.",
+    inspectAgain: "ഇലയുടെ ഇരുവശവും, തണ്ടുകൾ, വേരുകൾ, പഴങ്ങൾ എന്നിവ വീണ്ടുംപരിശോധിക്കുക. ഒരു extra അടയാളം ചേർത്ത് നിങ്ങളുടെ പ്രാദേശിക എക്സ്റ്റൻഷൻ ഉദ്യോഗസ്ഥനുമായി പരിശോധിക്കുക.",
+    matchedSigns: "പൊരുത്തപ്പെട്ട അടയാളങ്ങൾ",
+    photoReady: "ഫോട്ടോ തയ്യാറാണ്",
+    cameraUnavailable: "ക്യാമറ ആക്സസ് ലഭ്യമല്ല. നിങ്ങളുടെ ഉപകരണത്തിൽ നിന്ന് ഫോട്ടോ തിരഞ്ഞെടുക്കുക.",
+    cameraGranted: "ക്യാമറ ആക്സസ് അനുവദിച്ചു. ചെടിക്ക് ചുറ്റും ഫ്രെയിം ചെയ്ത് ഫോട്ടോ എടുത്തു.",
+    cameraDenied: "ക്യാമറ അനുമതി ലഭിച്ചില്ല. പകരം നിങ്ങളുടെ ഉപകരണത്തിൽ നിന്നുള്ള ഫോട്ടോ തിരഞ്ഞെടുക്കുക.",
+    emptyFarm: "ഇതുവരെ ഒരു കൃഷിയിടവും ചേർത്തിട്ടില്ല — താഴെ ചേർക്കുക.",
+    noReading: "ഇടതുവശത്ത് ഒരു കൃഷിയിടം ചേർത്ത്, മണ്ണിന്റെ റീഡിംഗ് രേഖപ്പെടുത്തുക და ഇന്നത്തെ ഉപദേശം കാണുക.",
+    fieldProfileSaved: "ഫീൽഡ് പ്രൊഫൈൽ സേവ് ചെയ്തു",
+    firstReading: "ഒരു മണ്ണിന്റെ ഈർപ്പം റീഡിംഗ് നൽകുക; KRISHI_PULSE ഇന്ന് തണ്ണീര്, കാത്തിരിപ്പ് അല്ലെങ്കിൽ അപകട ഉപദേശം കണക്കാക്കും.",
+    logFirstReading: "ആദ്യ റീഡിംഗ് രേഖപ്പെടുത്തുക",
+    stateReady: "നിങ്ങളുടെ പുതിയ കൃഷിയിടം തയ്യാറാണ്.",
+    syncPrompt: "അവയുടെ ഏറ്റവും പുതിയ സെൻസർ മൂല്യങ്ങൾ സമന്വയിപ്പിക്കാൻ കൃഷിയിടം തിരഞ്ഞെടുക്കുക.",
+    syncLatest: "അവസാന സെൻസർ റീഡിംഗ് സമന്വയിപ്പിച്ചു: {ts}. പുതിയ റീഡിംഗിന് മുമ്പ് മൂല്യങ്ങൾ പരിശോധിക്കുക.",
+    noSensorReading: "ഇതുവരെ സെൻസർ റീഡിംഗ് ഇല്ല. കൈമാർഗ്ഗം പരിശോധിക്കുക അല്ലെങ്കിൽ സെൻസർ ബന്ധിപ്പിക്കുക."
+  }
+};
+const CATALOG_LABELS = {
+  en:{crops:{tomato:"Tomato",chilli:"Chilli",maize:"Maize",ragi:"Ragi (finger millet)",groundnut:"Groundnut"},soils:{sandy:"Sandy soil",red_loam:"Red loam",black_clay:"Black clay (regur)",silt_loam:"Silt loam"},irrigation:{drip:"Drip",sprinkler:"Sprinkler",furrow:"Furrow",flood:"Flood"}},
+  kn:{crops:{tomato:"ಟೊಮೇಟೊ",chilli:"ಮೆಣಸಿನಕಾಯಿ",maize:"ಮೆಕ್ಕೆಜೋಳ",ragi:"ರಾಗಿ",groundnut:"ಕಡಲೆಕಾಯಿ"},soils:{sandy:"ಮರಳು ಮಣ್ಣು",red_loam:"ಕೆಂಪು ಲೋಮ್",black_clay:"ಕಪ್ಪು ಜೇಡಿ ಮಣ್ಣು",silt_loam:"ಸಿಲ್ಟ್ ಲೋಮ್"},irrigation:{drip:"ಹನಿ ನೀರಾವರಿ",sprinkler:"ಸ್ಪ್ರಿಂಕ್ಲರ್",furrow:"ತೋಡು ನೀರಾವರಿ",flood:"ಪ್ರವಾಹ ನೀರಾವರಿ"}},
+  hi:{crops:{tomato:"टमाटर",chilli:"मिर्च",maize:"मक्का",ragi:"रागी",groundnut:"मूंगफली"},soils:{sandy:"बलुई मिट्टी",red_loam:"लाल दोमट",black_clay:"काली चिकनी मिट्टी",silt_loam:"गाद दोमट"},irrigation:{drip:"ड्रिप",sprinkler:"स्प्रिंकलर",furrow:"नाली सिंचाई",flood:"बाढ़ सिंचाई"}},
+  te:{crops:{tomato:"టమాటా",chilli:"మిరప",maize:"మొక్కజొన్న",ragi:"రాగి",groundnut:"వేరుశనగ"},soils:{sandy:"ఇసుక నేల",red_loam:"ఎర్ర లోమ్",black_clay:"నల్ల బంకమట్టి",silt_loam:"సిల్ట్ లోమ్"},irrigation:{drip:"డ్రిప్",sprinkler:"స్ప్రింక్లర్",furrow:"కాలువ నీటిపారుదల",flood:"వరద నీటిపారుదల"}},
+  ta:{crops:{tomato:"தக்காளி",chilli:"மிளகாய்",maize:"மக்காச்சோளம்",ragi:"கேழ்வரகு",groundnut:"நிலக்கடலை"},soils:{sandy:"மணல் மண்",red_loam:"சிவப்பு களிமண்",black_clay:"கருப்பு களிமண்",silt_loam:"வண்டல் களிமண்"},irrigation:{drip:"சொட்டு நீர்ப்பாசனம்",sprinkler:"தெளிப்பான்",furrow:"வாய்க்கால்",flood:"வெள்ள நீர்ப்பாசனம்"}},
+  ml:{crops:{tomato:"തക്കാളി",chilli:"മുളക്",maize:"ചോളം",ragi:"റാഗി",groundnut:"നിലക്കടല"},soils:{sandy:"മണൽ മണ്ണ്",red_loam:"ചുവന്ന ലോം",black_clay:"കറുത്ത കളിമണ്ണ്",silt_loam:"സിൽറ്റ് ലോം"},irrigation:{drip:"ഡ്രിപ്പ്",sprinkler:"സ്പ്രിങ്ക്ലർ",furrow:"ചാൽ ജലസേചനം",flood:"വെള്ളപ്പൊക്കം ജലസേചനം"}}
+};
+function catalogLabel(type, key, fallback){ return ((CATALOG_LABELS[CURRENT_LANGUAGE] || CATALOG_LABELS.en)[type] || CATALOG_LABELS.en[type])[key] || fallback; }
+function localizeCatalogControls(){
+  if(!CATALOG) return;
+  const selectedCrop = $("#f_crop").value, selectedSoil = $("#f_soil").value, selectedIrrigation = $("#f_irrig").value, selectedPestCrop = $("#pestCrop").value;
+  fillSelect($("#f_crop"), CATALOG.crops.map(c => [c.key, catalogLabel("crops", c.key, c.name)]));
+  fillSelect($("#f_soil"), CATALOG.soils.map(s => [s.key, catalogLabel("soils", s.key, s.name)]));
+  fillSelect($("#f_irrig"), CATALOG.irrigation.map(i => [i, catalogLabel("irrigation", i, i[0].toUpperCase()+i.slice(1))]));
+  fillSelect($("#pestCrop"), CATALOG.crops.map(c => [c.key, catalogLabel("crops", c.key, c.name)]));
+  $("#f_crop").value = selectedCrop; $("#f_soil").value = selectedSoil; $("#f_irrig").value = selectedIrrigation; $("#pestCrop").value = selectedPestCrop;
+}
+const ADVICE_TEXT = {
+  en: {loading:"Reading today's conditions…", when:"When", days:"Days after sowing", moisture:"Soil moisture", reasoning:"Reasoning", trigger:"Trigger", depletion:"Depletion", et0:"ET₀ today", cropUse:"Crop use", rain:"Rain (48h)", confidence:"Confidence", other:"Other things worth knowing", lower:"Lower-priority findings from the same reading", steps:{Soil:"Soil",Crop:"Crop",Weather:"Weather",Sensor:"Sensor",Action:"Action"}},
+  kn: {loading:"ಇಂದಿನ ಪರಿಸ್ಥಿತಿಯನ್ನು ಓದಲಾಗುತ್ತಿದೆ…", when:"ಯಾವಾಗ", days:"ಬಿತ್ತನೆಯ ನಂತರದ ದಿನಗಳು", moisture:"ಮಣ್ಣಿನ ತೇವಾಂಶ", reasoning:"ತಾರ್ಕಿಕ ಕಾರಣ", trigger:"ಮಿತಿ", depletion:"ಕಡಿತ", et0:"ಇಂದಿನ ET₀", cropUse:"ಬೆಳೆಯ ಬಳಕೆ", rain:"ಮಳೆ (48 ಗಂಟೆ)", confidence:"ವಿಶ್ವಾಸ", other:"ಗಮನಿಸಬೇಕಾದ ಇತರ ವಿಷಯಗಳು", lower:"ಅದೇ ಓದಿನಿಂದ ಕಡಿಮೆ ಆದ್ಯತೆಯ ಸೂಚನೆಗಳು", steps:{Soil:"ಮಣ್ಣು",Crop:"ಬೆಳೆ",Weather:"ಹವಾಮಾನ",Sensor:"ಸೆನ್ಸರ್",Action:"ಕ್ರಮ"}},
+  hi: {loading:"आज की परिस्थितियां पढ़ी जा रही हैं…", when:"कब", days:"बुवाई के बाद दिन", moisture:"मिट्टी की नमी", reasoning:"कारण", trigger:"सीमा", depletion:"कमी", et0:"आज का ET₀", cropUse:"फसल उपयोग", rain:"बारिश (48 घंटे)", confidence:"विश्वास", other:"जानने योग्य अन्य बातें", lower:"इसी रीडिंग से कम प्राथमिकता वाले संकेत", steps:{Soil:"मिट्टी",Crop:"फसल",Weather:"मौसम",Sensor:"सेंसर",Action:"कार्रवाई"}},
+  te: {loading:"నేటి పరిస్థితులను చదువుతున్నాము…", when:"ఎప్పుడు", days:"విత్తిన తర్వాత రోజులు", moisture:"నేల తేమ", reasoning:"కారణం", trigger:"పరిమితి", depletion:"క్షీణత", et0:"నేటి ET₀", cropUse:"పంట వినియోగం", rain:"వర్షం (48 గంటలు)", confidence:"నమ్మకం", other:"తెలుసుకోవలసిన ఇతర విషయాలు", lower:"అదే రీడింగ్‌లో తక్కువ ప్రాధాన్యత సూచనలు", steps:{Soil:"నేల",Crop:"పంట",Weather:"వాతావరణం",Sensor:"సెన్సర్",Action:"చర్య"}},
+  ta: {loading:"இன்றைய நிலைமைகள் படிக்கப்படுகின்றன…", when:"எப்போது", days:"விதைத்த பின் நாட்கள்", moisture:"மண் ஈரப்பதம்", reasoning:"காரணம்", trigger:"வரம்பு", depletion:"குறைவு", et0:"இன்றைய ET₀", cropUse:"பயிர் பயன்பாடு", rain:"மழை (48 மணி)", confidence:"நம்பிக்கை", other:"தெரிந்துகொள்ள வேண்டிய பிற விஷயங்கள்", lower:"அதே பதிவிலிருந்து குறைந்த முன்னுரிமை அறிகுறிகள்", steps:{Soil:"மண்",Crop:"பயிர்",Weather:"வானிலை",Sensor:"சென்சார்",Action:"நடவடிக்கை"}},
+  ml: {loading:"ഇന്നത്തെ സാഹചര്യങ്ങൾ വായിക്കുന്നു…", when:"എപ്പോൾ", days:"വിതച്ചതിന് ശേഷമുള്ള ദിവസങ്ങൾ", moisture:"മണ്ണിലെ ഈർപ്പം", reasoning:"കാരണം", trigger:"പരിധി", depletion:"കുറവ്", et0:"ഇന്നത്തെ ET₀", cropUse:"വിള ഉപയോഗം", rain:"മഴ (48 മണിക്കൂർ)", confidence:"വിശ്വാസം", other:"അറിയേണ്ട മറ്റ് കാര്യങ്ങൾ", lower:"അതേ റീഡിംഗിൽ നിന്നുള്ള കുറഞ്ഞ മുൻഗണനാ സൂചനകൾ", steps:{Soil:"മണ്ണ്",Crop:"വിള",Weather:"കാലാവസ്ഥ",Sensor:"സെൻസർ",Action:"നടപടി"}}
+};
+const FINDING_TITLES = {
+  en: {SENSOR_INVALID:"Soil sensor reading looks wrong",SENSOR_OFFLINE:"Soil sensor has gone quiet",WATERLOGGING:"Soil is saturated - hold water and drain",WATER_CRITICAL:"Irrigate now - crop is near wilting",WAIT_FOR_RAIN:"Wait - rain should cover the water need",IRRIGATE_NOW:"Irrigate today",IRRIGATE_SOON:"Plan to irrigate tomorrow",WAIT_OK:"Wait - soil has enough water",WAIT_NO_DATA:"Hold irrigation until soil is checked",HEAT_STRESS:"Heat stress expected",COLD_STRESS:"Cold nights expected",DISEASE_RISK:"Disease risk",PH_OFF:"Soil pH is outside the comfort range",SALINITY:"Salts are building up in the soil",N_LOW:"Nitrogen looks low"},
+  kn: {SENSOR_INVALID:"ಮಣ್ಣಿನ ಸೆನ್ಸರ್ ರೀಡಿಂಗ್ ಸರಿಯಾಗಿಲ್ಲ",SENSOR_OFFLINE:"ಮಣ್ಣಿನ ಸೆನ್ಸರ್ ನಿಂತಿದೆ",WATERLOGGING:"ಮಣ್ಣು ನೀರಿನಿಂದ ತುಂಬಿದೆ - ನೀರು ನಿಲ್ಲಿಸಿ ಮತ್ತು ಹರಿವು ಮಾಡಿ",WATER_CRITICAL:"ಈಗ ನೀರು ಹಾಯಿಸಿ - ಬೆಳೆ ಒಣಗುವ ಹಂತದಲ್ಲಿದೆ",WAIT_FOR_RAIN:"ಕಾಯಿರಿ - ಮಳೆ ನೀರಿನ ಅಗತ್ಯ ಪೂರೈಸಬಹುದು",IRRIGATE_NOW:"ಇಂದು ನೀರು ಹಾಯಿಸಿ",IRRIGATE_SOON:"ನಾಳೆ ನೀರು ಹಾಯಿಸಲು ಯೋಜಿಸಿ",WAIT_OK:"ಕಾಯಿರಿ - ಮಣ್ಣಿನಲ್ಲಿ ಸಾಕಷ್ಟು ನೀರು ಇದೆ",WAIT_NO_DATA:"ಮಣ್ಣನ್ನು ಪರಿಶೀಲಿಸುವವರೆಗೆ ನೀರಾವರಿ ನಿಲ್ಲಿಸಿ",HEAT_STRESS:"ಬಿಸಿಲಿನ ಒತ್ತಡ ನಿರೀಕ್ಷಿಸಲಾಗಿದೆ",COLD_STRESS:"ಚಳಿ ರಾತ್ರಿಗಳು ನಿರೀಕ್ಷಿಸಲಾಗಿದೆ",DISEASE_RISK:"ರೋಗದ ಅಪಾಯ",PH_OFF:"ಮಣ್ಣಿನ pH ಸೂಕ್ತ ಮಿತಿಯಲ್ಲಿಲ್ಲ",SALINITY:"ಮಣ್ಣಿನಲ್ಲಿ ಉಪ್ಪು ಹೆಚ್ಚುತ್ತಿದೆ",N_LOW:"ಸಾರಜನಕ ಕಡಿಮೆ ಕಾಣುತ್ತಿದೆ"},
+  hi: {SENSOR_INVALID:"मिट्टी सेंसर की रीडिंग गलत लगती है",SENSOR_OFFLINE:"मिट्टी सेंसर ने काम करना बंद किया",WATERLOGGING:"मिट्टी संतृप्त है - पानी रोकें और निकास करें",WATER_CRITICAL:"अभी सिंचाई करें - फसल मुरझाने के पास है",WAIT_FOR_RAIN:"रुकें - बारिश पानी की जरूरत पूरी कर सकती है",IRRIGATE_NOW:"आज सिंचाई करें",IRRIGATE_SOON:"कल सिंचाई की योजना बनाएं",WAIT_OK:"रुकें - मिट्टी में पर्याप्त पानी है",WAIT_NO_DATA:"मिट्टी जांचे जाने तक सिंचाई रोकें",HEAT_STRESS:"गर्मी का तनाव अपेक्षित है",COLD_STRESS:"ठंडी रातें अपेक्षित हैं",DISEASE_RISK:"रोग का जोखिम",PH_OFF:"मिट्टी का pH सही सीमा में नहीं है",SALINITY:"मिट्टी में लवण बढ़ रहे हैं",N_LOW:"नाइट्रोजन कम दिख रहा है"},
+  te: {IRRIGATE_NOW:"ఈ రోజు నీరు పెట్టండి",WAIT_OK:"వేచి ఉండండి - నేలలో తగినంత నీరు ఉంది",HEAT_STRESS:"వేడి ఒత్తిడి వచ్చే అవకాశం ఉంది"},
+  ta: {IRRIGATE_NOW:"இன்று நீர்ப்பாசனம் செய்யவும்",WAIT_OK:"காத்திருக்கவும் - மண்ணில் போதுமான நீர் உள்ளது",HEAT_STRESS:"வெப்ப அழுத்தம் எதிர்பார்க்கப்படுகிறது"},
+  ml: {IRRIGATE_NOW:"ഇന്ന് നനയ്ക്കുക",WAIT_OK:"കാത്തിരിക്കുക - മണ്ണിൽ ആവശ്യത്തിന് വെള്ളമുണ്ട്",HEAT_STRESS:"ചൂട് സമ്മർദ്ദം പ്രതീക്ഷിക്കുന്നു"}
+};
+const STAGE_NAMES = {en:{Vegetative:"Vegetative",Flowering:"Flowering",Harvest:"Harvest",Establishment:"Establishment"},kn:{Vegetative:"ಬೆಳವಣಿಗೆ",Flowering:"ಹೂ ಬಿಡುವಿಕೆ",Harvest:"ಕೊಯ್ಲು",Establishment:"ಸ್ಥಾಪನೆ"},hi:{Vegetative:"वनस्पति विकास",Flowering:"फूल अवस्था",Harvest:"कटाई",Establishment:"स्थापना"},te:{Vegetative:"పెరుగుదల",Flowering:"పుష్పించే దశ",Harvest:"కోత",Establishment:"స్థాపన"},ta:{Vegetative:"வளர்ச்சி",Flowering:"பூக்கும் நிலை",Harvest:"அறுவடை",Establishment:"நிறுவல்"},ml:{Vegetative:"വളർച്ച",Flowering:"പൂക്കൽ",Harvest:"വിളവെടുപ്പ്",Establishment:"സ്ഥാപനം"}};
+const GENERATED_PHRASES = {
+  kn: [["Soil is at","ಮಣ್ಣಿನ ತೇವಾಂಶ"],["below the","ಇದಕ್ಕಿಂತ ಕಡಿಮೆ"],["trigger for","ಮಿತಿಗಿಂತ"],["Apply about","ಸುಮಾರು"],["Root zone is","ಬೇರು ಪ್ರದೇಶವು"],["depleted of plant-available water.","ಬೆಳೆಗೆ ಲಭ್ಯವಿರುವ ನೀರಿನಲ್ಲಿ ಕಡಿಮೆಯಾಗಿದೆ."],["This stage should be irrigated when moisture falls to about","ತೇವಾಂಶವು ಸುಮಾರು"],["It tolerates","ಇದು"],["depletion","ಕಡಿತವನ್ನು ಸಹಿಸುತ್ತದೆ"],["Today","ಇಂದು"],["gives ET0 of about","ET0 ಸುಮಾರು"],["The crop uses about","ಬೆಳೆ ಸುಮಾರು"],["which lowers soil moisture roughly","ಇದು ಮಣ್ಣಿನ ತೇವಾಂಶವನ್ನು ಸುಮಾರು"],["points per day.","ಅಂಕಗಳಷ್ಟು ಕಡಿಮೆ ಮಾಡುತ್ತದೆ."],["Dependable rain in 48 h:","48 ಗಂಟೆಗಳಲ್ಲಿ ನಿರೀಕ್ಷಿತ ಮಳೆ:"],["Rain will not close the gap, so irrigation is needed.","ಮಳೆ ಕೊರತೆಯನ್ನು ತುಂಬುವುದಿಲ್ಲ, ಆದ್ದರಿಂದ ನೀರಾವರಿ ಅಗತ್ಯ."],["Root zone needs","ಬೇರು ಪ್ರದೇಶಕ್ಕೆ ಅಗತ್ಯ"],["net","ನಿವ್ವಳ"],["gross with","ಒಟ್ಟು, ವಿಧಾನ"],["That is about","ಇದು ಸುಮಾರು"],["litres for","ಲೀಟರ್, ಪ್ರದೇಶ"],["Sensor nitrogen","ಸೆನ್ಸರ್ ಸಾರಜನಕ"],["against a healthy level of about","ಆರೋಗ್ಯಕರ ಮಟ್ಟ ಸುಮಾರು"],["or more.","ಅಥವಾ ಹೆಚ್ಚು."],["This week","ಈ ವಾರ"]],
+  hi: [["Soil is at","मिट्टी की नमी"],["below the","से कम है"],["trigger for","की सीमा से"],["Apply about","लगभग"],["Root zone is","जड़ क्षेत्र"],["depleted of plant-available water.","पौधों के लिए उपलब्ध पानी की कमी है।"],["This stage should be irrigated when moisture falls to about","इस अवस्था में नमी लगभग"],["It tolerates","यह"],["depletion","कमी सहन करती है"],["Today","आज"],["gives ET0 of about","का ET0 लगभग"],["The crop uses about","फसल लगभग"],["which lowers soil moisture roughly","जिससे मिट्टी की नमी लगभग"],["points per day.","अंक प्रतिदिन घटती है।"],["Dependable rain in 48 h:","48 घंटे में भरोसेमंद बारिश:"],["Rain will not close the gap, so irrigation is needed.","बारिश कमी पूरी नहीं करेगी, इसलिए सिंचाई जरूरी है।"],["Root zone needs","जड़ क्षेत्र को चाहिए"],["net","शुद्ध"],["gross with","कुल, विधि"],["That is about","यह लगभग"],["litres for","लीटर, क्षेत्रफल"],["Sensor nitrogen","सेंसर नाइट्रोजन"],["against a healthy level of about","स्वस्थ स्तर लगभग"],["or more.","या अधिक है।"],["This week","इस सप्ताह"]],
+  te: [["Soil is at","నేల తేమ"],["Apply about","సుమారు"],["Today","ఈ రోజు"],["The crop uses about","పంట సుమారు"],["Dependable rain in 48 h:","48 గంటల్లో నమ్మదగిన వర్షం:"],["irrigation is needed","నీరు పెట్టడం అవసరం"],["This week","ఈ వారం"]],
+  ta: [["Soil is at","மண் ஈரப்பதம்"],["Apply about","சுமார்"],["Today","இன்று"],["The crop uses about","பயிர் சுமார்"],["Dependable rain in 48 h:","48 மணி நேரத்தில் நம்பகமான மழை:"],["irrigation is needed","நீர்ப்பாசனம் தேவை"],["This week","இந்த வாரம்"]],
+  ml: [["Soil is at","മണ്ണിലെ ഈർപ്പം"],["Apply about","ഏകദേശം"],["Today","ഇന്ന്"],["The crop uses about","വിള ഏകദേശം"],["Dependable rain in 48 h:","48 മണിക്കൂറിലെ പ്രതീക്ഷിക്കാവുന്ന മഴ:"],["irrigation is needed","നനയ്ക്കണം"],["This week","ഈ ആഴ്ച"]]
+};
+const EXTRA_GENERATED_PHRASES = {
+  kn: [["Humid, mild weather","ತೇವಾಂಶ ಹೆಚ್ಚಿರುವ ಮೃದುವಾದ ಹವಾಮಾನ"],["is forecast for several days.","ಹಲವು ದಿನಗಳ ಮುನ್ಸೂಚನೆ ಇದೆ."],["No calm, dry day is visible in the forecast yet, so scout first.","ಶಾಂತ, ಒಣ ದಿನ ಇನ್ನೂ ಕಾಣುತ್ತಿಲ್ಲ; ಮೊದಲು ಹೊಲ ಪರಿಶೀಲಿಸಿ."],["Scout in the next 24 h","ಮುಂದಿನ 24 ಗಂಟೆಗಳಲ್ಲಿ ಪರಿಶೀಲಿಸಿ"],["of today plus the next 3 days match the late blight / early blight pattern","ಇಂದು ಮತ್ತು ಮುಂದಿನ 3 ದಿನಗಳಲ್ಲಿ ರೋಗದ ಮಾದರಿಗೆ ಹೊಂದಿಕೆಯಾಗುತ್ತವೆ"],["Leaf wetness and humidity let the disease spread quickly.","ಎಲೆ ತೇವಾಂಶ ಮತ್ತು ಆರ್ದ್ರತೆಯಿಂದ ರೋಗ ವೇಗವಾಗಿ ಹರಡುತ್ತದೆ."],["Check the lower leaves and undersides first.","ಮೊದಲು ಕೆಳಗಿನ ಎಲೆಗಳು ಮತ್ತು ಅವುಗಳ ಕೆಳಭಾಗ ಪರಿಶೀಲಿಸಿ."],["Walk the field, look for early spots, remove badly affected leaves, improve airflow.","ಹೊಲದಲ್ಲಿ ನಡೆದು ಆರಂಭಿಕ ಕಲೆಗಳನ್ನು ನೋಡಿ, ಹೆಚ್ಚು ಬಾಧಿತ ಎಲೆಗಳನ್ನು ತೆಗೆದು ಗಾಳಿಚಲನೆ ಸುಧಾರಿಸಿ."],["Early morning (before 9 am) or after 5 pm","ಬೆಳಿಗ್ಗೆ 9 ಗಂಟೆಗೆ ಮೊದಲು ಅಥವಾ ಸಂಜೆ 5 ಗಂಟೆಯ ನಂತರ"],["High","ಹೆಚ್ಚು"],["Medium","ಮಧ್ಯಮ"],["Low","ಕಡಿಮೆ"],["stage","ಹಂತ"],["acre","ಎಕರೆ"]],
+  hi: [["Humid, mild weather","नम और हल्का मौसम"],["humidity above 85%, 12-26 °C","85% से अधिक आर्द्रता, 12-26 °C"],["is forecast for several days.","कई दिनों तक रहने का अनुमान है।"],["No calm, dry day is visible in the forecast yet, so scout first.","अभी शांत और सूखा दिन नहीं दिख रहा, इसलिए पहले खेत देखें।"],["Scout in the next 24 h","अगले 24 घंटे में निरीक्षण करें"],["of today plus the next 3 days match the late blight / early blight pattern","आज और अगले 3 दिन रोग के पैटर्न से मेल खाते हैं"],["Leaf wetness and humidity let the disease spread quickly.","पत्तियों की नमी और आर्द्रता से रोग तेजी से फैलता है।"],["Tomato at vegetative stage","टमाटर की वनस्पति अवस्था में"],["vegetative.","वनस्पति अवस्था में।"],["Check the lower leaves and undersides first.","पहले निचली पत्तियों और उनके नीचे की सतह देखें।"],["Walk the field, look for early spots, remove badly affected leaves, improve airflow.","खेत में जाकर शुरुआती धब्बे देखें, बहुत प्रभावित पत्तियां हटाएं और हवा का प्रवाह बढ़ाएं।"],["If spots are spreading, follow your KVK or agriculture officer's advice on what to spray and the dose. Do not spray before rain or in wind above 15 km/h.","यदि धब्बे फैल रहे हैं, तो KVK या कृषि अधिकारी की दवा और मात्रा संबंधी सलाह मानें। बारिश से पहले या 15 किमी/घंटे से अधिक हवा में छिड़काव न करें।"],["Early morning (before 9 am) or after 5 pm","सुबह 9 बजे से पहले या शाम 5 बजे के बाद"],["High","उच्च"],["Medium","मध्यम"],["Low","कम"],["stage","अवस्था"],["acre","एकड़"]],
+  te: [["Humid, mild weather","తేమతో కూడిన మితమైన వాతావరణం"],["Scout in the next 24 h","తదుపరి 24 గంటల్లో పరిశీలించండి"],["Check the lower leaves and undersides first.","ముందుగా కింది ఆకులు మరియు వాటి దిగువ భాగాన్ని చూడండి."],["Early morning (before 9 am) or after 5 pm","ఉదయం 9 గంటలకు ముందు లేదా సాయంత్రం 5 తర్వాత"]],
+  ta: [["Humid, mild weather","ஈரமான மிதமான வானிலை"],["Scout in the next 24 h","அடுத்த 24 மணி நேரத்தில் ஆய்வு செய்யவும்"],["Check the lower leaves and undersides first.","முதலில் கீழ் இலைகளையும் அவற்றின் அடிப்பக்கத்தையும் பார்க்கவும்."],["Early morning (before 9 am) or after 5 pm","காலை 9 மணிக்கு முன் அல்லது மாலை 5 மணிக்குப் பிறகு"]],
+  ml: [["Humid, mild weather","ഈർപ്പമുള്ള മിതമായ കാലാവസ്ഥ"],["Scout in the next 24 h","അടുത്ത 24 മണിക്കൂറിൽ പരിശോധിക്കുക"],["Check the lower leaves and undersides first.","താഴത്തെ ഇലകളും അവയുടെ അടിഭാഗവും ആദ്യം പരിശോധിക്കുക."],["Early morning (before 9 am) or after 5 pm","രാവിലെ 9 മണിക്ക് മുമ്പ് അല്ലെങ്കിൽ വൈകിട്ട് 5 മണിക്ക് ശേഷം"]]
+};
+const SIGN_LABELS = {
+  kn:{clusters_under_leaves:"ಎಲೆಗಳ ಕೆಳಗೆ ಗುಂಪುಗಳು",sticky_leaves:"ಅಂಟುವ ಎಲೆಗಳು",leaf_curl:"ಎಲೆ ಮುದುಡುವಿಕೆ",ants_on_plant:"ಸಸ್ಯದ ಮೇಲೆ ಇರುವೆಗಳು",small_white_fliers:"ಸಣ್ಣ ಬಿಳಿ ಹಾರುವ ಕೀಟಗಳು",yellowing_leaves:"ಹಳದಿ ಎಲೆಗಳು",holes_in_fruit:"ಹಣ್ಣಿನಲ್ಲಿ ರಂಧ್ರಗಳು",frass_at_hole:"ರಂಧ್ರದ ಬಳಿ ಕೀಟ ಮಲ",wilting_shoots:"ಒಣಗುತ್ತಿರುವ ಚಿಗುರುಗಳು",caterpillar_seen:"ಚಿಟ್ಟೆ ಹುಳು ಕಾಣುತ್ತದೆ",fine_webbing:"ಸಣ್ಣ ಜಾಲ",bronze_leaves:"ಕಂಚಿನ ಬಣ್ಣದ ಎಲೆಗಳು",speckled_leaves:"ಚುಕ್ಕೆಗಳಿರುವ ಎಲೆಗಳು",dry_leaf_edges:"ಒಣ ಎಲೆ ಅಂಚುಗಳು"},
+  hi:{clusters_under_leaves:"पत्तियों के नीचे गुच्छे",sticky_leaves:"चिपचिपी पत्तियां",leaf_curl:"पत्ती मुड़ना",ants_on_plant:"पौधे पर चींटियां",small_white_fliers:"छोटे सफेद उड़ने वाले कीट",yellowing_leaves:"पीली पत्तियां",holes_in_fruit:"फल में छेद",frass_at_hole:"छेद पर कीट मल",wilting_shoots:"मुरझाते अंकुर",caterpillar_seen:"इल्ली दिखाई दी",fine_webbing:"बारीक जाला",bronze_leaves:"कांस्य रंग की पत्तियां",speckled_leaves:"चितकबरी पत्तियां",dry_leaf_edges:"सूखे पत्ती किनारे"},
+  te:{clusters_under_leaves:"ఆకుల కింద గుంపులు",sticky_leaves:"జిగట ఆకులు",leaf_curl:"ఆకు ముడుచుకోవడం",ants_on_plant:"మొక్కపై చీమలు",yellowing_leaves:"పసుపు ఆకులు",holes_in_fruit:"పండులో రంధ్రాలు"},
+  ta:{clusters_under_leaves:"இலைகளின் கீழ் கூட்டங்கள்",sticky_leaves:"ஒட்டும் இலைகள்",leaf_curl:"இலை சுருட்டல்",ants_on_plant:"செடியில் எறும்புகள்",yellowing_leaves:"மஞ்சள் இலைகள்",holes_in_fruit:"பழத்தில் துளைகள்"},
+  ml:{clusters_under_leaves:"ഇലകൾക്ക് കീഴിലെ കൂട്ടങ്ങൾ",sticky_leaves:"ഒട്ടുന്ന ഇലകൾ",leaf_curl:"ഇല ചുരുളൽ",ants_on_plant:"ചെടിയിലെ ഉറുമ്പുകൾ",yellowing_leaves:"മഞ്ഞ ഇലകൾ",holes_in_fruit:"പഴത്തിലെ ദ്വാരങ്ങൾ"}
+};
+function adviceText(key){ return (ADVICE_TEXT[CURRENT_LANGUAGE] || ADVICE_TEXT.en)[key] || ADVICE_TEXT.en[key]; }
+function adviceStepLabel(label){ return ((ADVICE_TEXT[CURRENT_LANGUAGE] || ADVICE_TEXT.en).steps[label]) || label; }
+function findingTitle(f){ return ((FINDING_TITLES[CURRENT_LANGUAGE] || FINDING_TITLES.en)[f.code]) || f.title; }
+function stageName(stage){ return ((STAGE_NAMES[CURRENT_LANGUAGE] || STAGE_NAMES.en)[stage]) || stage; }
+function localizeGenerated(value){
+  if(!value || CURRENT_LANGUAGE === "en") return value || "";
+  let localized = [...(GENERATED_PHRASES[CURRENT_LANGUAGE] || []), ...(EXTRA_GENERATED_PHRASES[CURRENT_LANGUAGE] || [])].reduce((text, [from, to]) => text.replaceAll(from, to), value);
+  if(CATALOG){ CATALOG.crops.forEach(crop => { localized = localized.replaceAll(crop.name, catalogLabel("crops", crop.key, crop.name)); }); }
+  return localized;
+}
+function applyLanguage(lang){
+  CURRENT_LANGUAGE = I18N[lang] ? lang : "en";
+  const activeText = Object.assign({}, I18N.en, I18N[CURRENT_LANGUAGE] || {});
+  document.documentElement.lang = CURRENT_LANGUAGE;
+  document.querySelectorAll("[data-i18n]").forEach(el => { if(activeText[el.dataset.i18n]) el.textContent = activeText[el.dataset.i18n]; });
+  document.querySelectorAll("[data-i18n-placeholder]").forEach(el => { if(activeText[el.dataset.i18nPlaceholder]) el.placeholder = activeText[el.dataset.i18nPlaceholder]; });
+  document.querySelectorAll(".voice-button").forEach(button => { button.title = voiceText("speakField", "Speak this field"); button.setAttribute("aria-label", button.title); });
+  const simulationButton = $("#toggleSimulation");
+  if(simulationButton) simulationButton.textContent = activeText[SIMULATION_RUNNING ? "pauseSimulation" : "resumeSimulation"] || (SIMULATION_RUNNING ? "Pause simulation" : "Resume simulation");
+  localizeCatalogControls();
+  if(FARMS.length) refreshFarms(true).catch(() => {});
+  if($("#pestCrop").value) loadPestSymptoms($("#pestCrop").value).catch(() => {});
+  localStorage.setItem("krishiPulseLanguage", CURRENT_LANGUAGE);
+  if (CURRENT !== null) { loadHistory().catch(() => {}); }
+  if(CURRENT_ADVICE) $("#adviceOutput").innerHTML = renderAdvice(CURRENT_ADVICE);
+  if (CURRENT === null) renderEmpty();
+}
+function enterWorkspace(name){
+  sessionStorage.setItem("krishiPulseUser", name);
+  $("#authGate").classList.add("leaving"); $("#appShell").hidden = false; $("#appShell").classList.add("workspace-entering");
+  setTimeout(() => { $("#authGate").hidden = true; $("#authGate").classList.remove("leaving"); }, 520);
+  setTimeout(() => $("#appShell").classList.remove("workspace-entering"), 900);
+  boot();
+}
+function exitWorkspace(){
+  sessionStorage.removeItem("krishiPulseUser");
+  $("#appShell").hidden = true; $("#authGate").hidden = false;
+  $("#loginPass").value = ""; $("#loginUser").focus();
+}
+$("#loginForm").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const name = $("#loginUser").value.trim();
+  if(name) enterWorkspace(name);
+});
+$("#signout").addEventListener("click", exitWorkspace);
+$("#languageSelect").addEventListener("change", (e) => applyLanguage(e.target.value));
+async function api(path, opts){
+  const r = await fetch(API + path, Object.assign({headers:{"Content-Type":"application/json"}}, opts));
+  if(!r.ok){ const e = await r.json().catch(()=>({error:r.statusText})); throw new Error(e.error || "request failed"); }
+  return r.status === 204 ? null : r.json();
+}
+
+async function boot(){
+  CATALOG = await api("/catalog");
+  localizeCatalogControls();
+  $("#pestCrop").addEventListener("change", () => loadPestSymptoms($("#pestCrop").value));
+  await loadPestSymptoms($("#pestCrop").value);
+  addVoiceInputs();
+  await refreshFarms();
+}
+function fillSelect(sel, pairs){
+  sel.innerHTML = pairs.map(([v,l]) => `<option value="${v}">${l}</option>`).join("");
+}
+
+async function refreshFarms(keepCurrent){
+  FARMS = await api("/farms");
+  const list = $("#farmList");
+  $("#farmEmpty").hidden = FARMS.length > 0;
+  list.innerHTML = FARMS.map(f => `
+    <li>
+      <button class="farm-btn" data-id="${f.id}" aria-current="${CURRENT===f.id}">
+        <span class="name">${f.name}</span>
+        <span class="meta">${cropName(f.crop)} · ${f.area_acres}ac · ${catalogLabel("irrigation", f.irrigation, f.irrigation)}</span>
+      </button>
+    </li>`).join("");
+  list.querySelectorAll(".farm-btn").forEach(b => b.addEventListener("click", () => selectFarm(b.dataset.id)));
+  if(!keepCurrent && FARMS.length && !CURRENT) selectFarm(FARMS[0].id);
+  else if(CURRENT && !FARMS.find(f=>f.id===CURRENT)){ CURRENT=null; $("#readingPanel").hidden=true; $("#historyPanel").hidden=true; $("#pestPanel").hidden=true; renderEmpty(); }
+}
+function cropName(k){ const c = CATALOG.crops.find(c=>c.key===k); return c ? catalogLabel("crops", c.key, c.name) : k; }
+
+function selectFarm(id){
+  CURRENT = id;
+  const farm = FARMS.find(item => item.id === id);
+  document.querySelectorAll(".farm-btn").forEach(b => b.setAttribute("aria-current", String(b.dataset.id===id)));
+  $("#readingPanel").hidden = false;
+  $("#historyPanel").hidden = false;
+  $("#pestPanel").hidden = false;
+  if(farm){ $("#pestCrop").value = farm.crop; loadPestSymptoms(farm.crop); }
+  loadHistory();
+  loadAdvice();
+}
+
+// ---- farm form ----
+$("#newFarmToggle").addEventListener("click", () => {
+  $("#farmForm").hidden = false; $("#newFarmToggle").hidden = true;
+  initFarmMap();
+});
+$("#cancelFarm").addEventListener("click", () => {
+  $("#farmForm").hidden = true; $("#newFarmToggle").hidden = false; $("#farmForm").reset();
+});
+$("#farmForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const [lat, lon] = ($("#f_lat").value || "").split(",").map(s => parseFloat(s.trim()));
+  const body = {
+    name: $("#f_name").value, crop: $("#f_crop").value, soil_type: $("#f_soil").value,
+    sowing_date: $("#f_sow").value, area_acres: parseFloat($("#f_area").value) || 1,
+    irrigation: $("#f_irrig").value, lat: isFinite(lat) ? lat : 0, lon: isFinite(lon) ? lon : 0,
+  };
+  try{
+    const farm = await api("/farms", {method:"POST", body: JSON.stringify(body)});
+    $("#farmForm").reset(); $("#farmForm").hidden = true; $("#newFarmToggle").hidden = false;
+    await refreshFarms(true); selectFarm(farm.id); toast("Farm saved");
+  }catch(err){ toast(err.message); }
+});
+function loadLeaflet(){
+  return new Promise((resolve, reject) => {
+    if(window.L) return resolve();
+    const script = document.createElement("script");
+    script.src = LEAFLET_URL; script.onload = resolve; script.onerror = reject;
+    document.head.appendChild(script);
+  });
+}
+async function initFarmMap(){
+  try{
+    await loadLeaflet();
+    if(FARM_MAP){ FARM_MAP.invalidateSize(); return; }
+    FARM_MAP = L.map("farmMap", {zoomControl:true}).setView([15.3, 75.7], 5);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a>'
+    }).addTo(FARM_MAP);
+    FARM_MAP.on("click", (event) => setFarmLocation(event.latlng.lat, event.latlng.lng));
+    const [lat, lon] = parseFarmLocation();
+    if(isFinite(lat) && isFinite(lon) && (lat || lon)) setFarmLocation(lat, lon, 13);
+  }catch(_err){
+    $("#locationStatus").textContent = "Map tiles unavailable. Enter latitude, longitude manually.";
+  }
+}
+function parseFarmLocation(){
+  return ($("#f_lat").value || "").split(",").map(value => parseFloat(value.trim()));
+}
+function setFarmLocation(lat, lon, zoom=14){
+  if(!isFinite(lat) || !isFinite(lon)) return;
+  $("#f_lat").value = `${lat.toFixed(5)}, ${lon.toFixed(5)}`;
+  $("#locationStatus").textContent = `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
+  if(FARM_MAP){
+    if(FARM_MARKER) FARM_MARKER.setLatLng([lat, lon]);
+    else FARM_MARKER = L.marker([lat, lon]).addTo(FARM_MAP);
+    FARM_MAP.setView([lat, lon], zoom);
+  }
+}
+$("#useLocation").addEventListener("click", () => {
+  if(!navigator.geolocation){ $("#locationStatus").textContent = "Location access is unavailable in this browser."; return; }
+  $("#locationStatus").textContent = "Requesting your location…";
+  navigator.geolocation.getCurrentPosition(
+    (position) => setFarmLocation(position.coords.latitude, position.coords.longitude),
+    () => { $("#locationStatus").textContent = "Location permission was not granted. You can use the map."; },
+    {enableHighAccuracy:true, timeout:10000, maximumAge:300000}
+  );
+});
+
+// ---- reading form ----
+$("#readingForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  if(!CURRENT) return;
+  const body = {
+    moisture_pct: parseFloat($("#r_moist").value),
+    temp_c: numOrNull("#r_temp"), ph: numOrNull("#r_ph"),
+    ec_ds_m: numOrNull("#r_ec"), n_mg_kg: numOrNull("#r_n"), battery_pct: numOrNull("#r_batt"),
+  };
+  try{
+    await api(`/farms/${CURRENT}/readings`, {method:"POST", body: JSON.stringify(body)});
+    $("#readingForm").reset(); toast("Reading logged");
+    await loadHistory(); await loadAdvice();
+  }catch(err){ toast(err.message); }
+});
+function numOrNull(sel){ const v = $(sel).value; return v === "" ? null : parseFloat(v); }
+
+async function loadPestSymptoms(crop){
+  if(!crop) return;
+  const box = $("#pestSymptoms");
+  box.innerHTML = `<p class="hint">Loading crop signs…</p>`;
+  try{
+    const data = await api(`/pests?crop=${encodeURIComponent(crop)}`);
+    const signs = [...new Map(data.pests.flatMap(pest => pest.symptoms.map(symptom => [symptom, symptom])).map(pair => pair)).values()];
+    box.innerHTML = signs.map(sign => `<label class="symptom-option"><input type="checkbox" name="pestSymptom" value="${sign}"><span>${prettySign(sign)}</span></label>`).join("");
+  }catch(err){ box.innerHTML = `<p class="hint">${err.message}</p>`; }
+}
+function prettySign(sign){ return ((SIGN_LABELS[CURRENT_LANGUAGE] || {})[sign]) || sign.replaceAll("_", " ").replace(/\b\w/g, letter => letter.toUpperCase()); }
+$("#pestForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const symptoms = [...document.querySelectorAll("input[name='pestSymptom']:checked")].map(input => input.value);
+  if(!symptoms.length){ toast("Select at least one field sign"); return; }
+  const button = $(".pest-submit"); button.disabled = true;
+  try{
+    const result = await api("/pest-detection", {method:"POST", body:JSON.stringify({
+      crop: $("#pestCrop").value, symptoms, notes: $("#pestNotes").value
+    })});
+    renderPestResult(result);
+  }catch(err){ toast(err.message); }
+  finally{ button.disabled = false; }
+});
+function renderPestResult(result){
+  const resultBox = $("#pestResult");
+  const text = I18N[CURRENT_LANGUAGE] || I18N.en;
+  const matches = result.matches.map(match => `<article class="pest-match">
+    <div class="pest-match-head"><h3>${match.name}</h3><span>${Math.round(match.confidence*100)}% match</span></div>
+    <p class="matched-signs">${text.matchedSigns || "Matched"}: ${match.matched_signs.map(prettySign).join(" · ")}</p>
+    <div class="pest-effect"><strong>${text.harmfulEffect || "Harmful effect"}</strong><p>${localizeGenerated(match.harm)}</p></div>
+    <p>${localizeGenerated(match.action)}</p><strong>${localizeGenerated(match.urgency)}</strong>
+  </article>`).join("");
+  resultBox.innerHTML = matches ? `<div class="pest-result-head"><span>${text.fieldCheck || "FIELD CHECK"}</span><strong>${result.matches.length} ${text.likelyMatch || "likely match"}${result.matches.length === 1 ? "" : "es"}</strong></div>${matches}<p class="pest-disclaimer">${localizeGenerated(result.disclaimer)}</p>` : `<div class="pest-empty"><strong>${text.noCloseMatch || "No close match yet."}</strong><p>${text.inspectAgain || "Inspect both sides of leaves, stems, roots, and fruit again. Add another sign and check with your local extension officer."}</p></div>`;
+}
+function showPhoto(file){
+  if(!file) return;
+  PHOTO_FILE = file;
+  const preview = $("#pestPreview");
+  if(preview.src.startsWith("blob:")) URL.revokeObjectURL(preview.src);
+  preview.src = URL.createObjectURL(file); preview.hidden = false;
+  const text = I18N[CURRENT_LANGUAGE] || I18N.en;
+  $("#photoPermissionStatus").textContent = `${text.photoReady || "Photo ready"}: ${file.name || "camera capture"}.`;
+}
+$("#pestPhoto").addEventListener("change", (e) => showPhoto(e.target.files[0]));
+$("#requestPhotoStorage").addEventListener("click", async () => {
+  try{
+    const granted = navigator.storage && navigator.storage.persist ? await navigator.storage.persist() : false;
+    const text = I18N[CURRENT_LANGUAGE] || I18N.en;
+    $("#photoPermissionStatus").textContent = granted ? (text.photoStorageAllowed || "Persistent photo storage is allowed on this device.") : (text.photoStorageFallback || "Device photo access is ready through the picker; the browser did not grant persistent storage.");
+  }catch(_err){ const text = I18N[CURRENT_LANGUAGE] || I18N.en; $("#photoPermissionStatus").textContent = text.photoStorageUnavailable || "Storage permission is unavailable here; use Choose from device."; }
+});
+$("#openCamera").addEventListener("click", async () => {
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){ const text = I18N[CURRENT_LANGUAGE] || I18N.en; $("#photoPermissionStatus").textContent = text.cameraUnavailable || "Camera access is unavailable. Choose a photo from your device."; return; }
+  try{
+    CAMERA_STREAM = await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"}}, audio:false});
+    $("#cameraPreview").srcObject = CAMERA_STREAM; $("#cameraBox").hidden = false;
+    const text = I18N[CURRENT_LANGUAGE] || I18N.en;
+    $("#photoPermissionStatus").textContent = text.cameraGranted || "Camera access granted. Frame the plant and capture a photo.";
+  }catch(_err){ const text = I18N[CURRENT_LANGUAGE] || I18N.en; $("#photoPermissionStatus").textContent = text.cameraDenied || "Camera permission was not granted. Choose a photo from your device instead."; }
+});
+function closeCamera(){
+  if(CAMERA_STREAM) CAMERA_STREAM.getTracks().forEach(track => track.stop());
+  CAMERA_STREAM = null; $("#cameraPreview").srcObject = null; $("#cameraBox").hidden = true;
+}
+$("#closeCamera").addEventListener("click", closeCamera);
+$("#capturePhoto").addEventListener("click", () => {
+  const video = $("#cameraPreview");
+  if(!video.videoWidth) return;
+  const canvas = document.createElement("canvas"); canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+  canvas.getContext("2d").drawImage(video, 0, 0);
+  canvas.toBlob(blob => { showPhoto(new File([blob], `field-${Date.now()}.jpg`, {type:"image/jpeg"})); closeCamera(); }, "image/jpeg", .9);
+});
+
+// ---- advice rendering ----
+async function loadAdvice(){
+  const col = $("#adviceOutput");
+  CURRENT_ADVICE = null;
+  col.innerHTML = `<div class="panel"><div class="state-msg">${adviceText("loading")}</div></div>`;
+  try{
+    const a = await api(`/farms/${CURRENT}/advice`);
+    CURRENT_ADVICE = a;
+    col.innerHTML = renderAdvice(a);
+  }catch(err){
+    col.innerHTML = err.message === "no soil reading yet for this farm"
+      ? renderNeedsReading() : `<div class="panel"><div class="state-msg">${err.message}</div></div>`;
+  }
+}
+function renderNeedsReading(){
+  const farm = FARMS.find(f => f.id === CURRENT);
+  const text = I18N[CURRENT_LANGUAGE] || I18N.en;
+  return `<div class="panel next-step">
+    <div class="next-step-icon" aria-hidden="true">◎</div>
+    <p class="eyebrow">${text.fieldProfileSaved || "FIELD PROFILE SAVED"}</p>
+    <h2>${farm ? farm.name : (text.stateReady || "Your new farm")}</h2>
+    <p>${text.firstReading || "Give us one soil moisture reading and KRISHI_PULSE will calculate today's irrigation, wait, or risk advice."}</p>
+    <button class="btn" type="button" id="startReading">${text.logFirstReading || "Log the first reading"} <span aria-hidden="true">→</span></button>
+  </div>`;
+}
+document.addEventListener("click", (e) => {
+  if(e.target.closest("#startReading")){
+    $("#r_moist").focus();
+    $("#readingPanel").scrollIntoView({behavior:"smooth", block:"center"});
+  }
+});
+function renderAdvice(a){
+  const p = a.primary;
+  const actionLabel = (a.labels[p.action] && (a.labels[p.action][CURRENT_LANGUAGE] || a.labels[p.action].en)) || p.action;
+  const otherCards = a.others.map(f => `
+    <div class="alert-card sev${f.severity}">
+      <h4>${findingTitle(f)}</h4>
+      <p>${localizeGenerated(f.detail)}</p>
+      ${f.when ? `<div class="when">${localizeGenerated(f.when)}</div>` : ""}
+    </div>`).join("");
+  return `
+    <div class="verdict">
+      <div class="verdict-head">
+        <div>
+          <p class="stage">${a.farm.name} · ${cropName(a.farm.crop)} · ${stageName(a.stage)}</p>
+          <h1>${findingTitle(p)}</h1>
+          <p class="detail">${localizeGenerated(p.detail)}</p>
+        </div>
+        <span class="stamp ${p.action}">${actionLabel}</span>
+      </div>
+      <div class="when-row">
+        <div><span>${adviceText("when")}</span><strong>${localizeGenerated(p.when) || "—"}</strong></div>
+        <div><span>${adviceText("days")}</span><strong>${a.metrics.days_after_sowing}</strong></div>
+        <div><span>${adviceText("moisture")}</span><strong>${a.metrics.moisture_pct}%</strong></div>
+      </div>
+      <div class="ledger">
+        <h3>${adviceText("reasoning")}</h3>
+        <ol>
+          ${p.steps.map(s => `<li><span></span><div><div class="src">${adviceStepLabel(s.label)}</div><div class="fact">${localizeGenerated(s.fact)}</div><div class="meaning">${localizeGenerated(s.meaning)}</div></div></li>`).join("")}
+        </ol>
+      </div>
+      <div class="metrics">
+        <div class="metric"><span>${adviceText("trigger")}</span><strong>${a.metrics.trigger_pct}%</strong></div>
+        <div class="metric"><span>${adviceText("depletion")}</span><strong>${a.metrics.depletion_pct}%</strong></div>
+        <div class="metric"><span>${adviceText("et0")}</span><strong>${a.metrics.et0_mm}mm</strong></div>
+        <div class="metric"><span>${adviceText("cropUse")}</span><strong>${a.metrics.etc_mm}mm/d</strong></div>
+        <div class="metric"><span>${adviceText("rain")}</span><strong>${a.metrics.effective_rain_48h_mm}mm</strong></div>
+      </div>
+      <div class="confidence">
+        <span class="conf-badge ${a.confidence.label}">${adviceText("confidence")}: ${localizeGenerated(a.confidence.label)} (${Math.round(a.confidence.score*100)}%)</span>
+        ${a.confidence.notes.length ? `<span class="notes">${localizeGenerated(a.confidence.notes.join(" "))}</span>` : ""}
+      </div>
+    </div>
+    ${otherCards ? `<section class="panel" style="margin-top:20px;"><div class="panel-head"><h2>${adviceText("other")}</h2><p>${adviceText("lower")}</p></div><div class="panel-body">${otherCards}</div></section>` : ""}
+  `;
+}
+function renderEmpty(){
+  const text = I18N[CURRENT_LANGUAGE] || I18N.en;
+  $("#adviceOutput").innerHTML = `<div class="panel"><div class="state-msg">${text.noReading || "Add a farm on the left, then log a soil reading to get today's recommendation."}</div></div>`;
+}
+
+// ---- history / trend ----
+async function loadHistory(){
+  const text = I18N[CURRENT_LANGUAGE] || I18N.en;
+  const rows = await api(`/farms/${CURRENT}/history`);
+  if(rows.length){
+    const latest = rows[0];
+    [["#r_moist", "moisture_pct"], ["#r_temp", "temp_c"], ["#r_ph", "ph"], ["#r_ec", "ec_ds_m"], ["#r_n", "n_mg_kg"], ["#r_batt", "battery_pct"]].forEach(([selector, key]) => {
+      if(latest[key] !== null && latest[key] !== undefined) $(selector).value = latest[key];
+    });
+    $("#sensorSync").textContent = (text.syncLatest || "Auto-synced latest sensor reading: {ts}. Check values before logging a new reading.").replace("{ts}", fmtTs(latest.ts));
+  }else $("#sensorSync").textContent = text.noSensorReading || "No sensor reading yet. Enter a hand-check or connect a sensor.";
+  const tbody = $("#historyBody");
+  $("#historyTable").hidden = rows.length === 0;
+  tbody.innerHTML = rows.slice().reverse().map(r => `
+    <tr><td>${fmtTs(r.ts)}</td><td>${r.moisture_pct}%</td><td>${r.ph ?? "—"}</td><td>${r.ec_ds_m ?? "—"}</td></tr>
+  `).join("");
+  $("#trendChart").innerHTML = rows.length >= 2 ? sparkline(rows) : `<p class="trend-empty">Log two or more readings to see a trend line.</p>`;
+}
+function fmtTs(ts){ try{ return new Date(ts).toLocaleString(undefined,{month:"short", day:"numeric", hour:"2-digit", minute:"2-digit"}); }catch{ return ts; } }
+function sparkline(rows){
+  const vals = rows.map(r => r.moisture_pct);
+  const w = 560, h = 110, pad = 10;
+  const min = Math.min(...vals), max = Math.max(...vals);
+  const span = (max - min) || 1;
+  const pts = vals.map((v,i) => {
+    const x = pad + (i/(vals.length-1)) * (w - 2*pad);
+    const y = h - pad - ((v - min)/span) * (h - 2*pad);
+    return [x,y];
+  });
+  const path = pts.map((p,i) => (i===0?"M":"L") + p[0].toFixed(1) + "," + p[1].toFixed(1)).join(" ");
+  const dots = pts.map(p => `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="3" fill="var(--harvest)"/>`).join("");
+  return `<svg class="trend-svg" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" role="img" aria-label="Soil moisture trend">
+    <path d="${path}" fill="none" stroke="var(--soil)" stroke-width="2"/>${dots}</svg>`;
+}
+
+const savedUser = sessionStorage.getItem("krishiPulseUser");
+const savedLanguage = localStorage.getItem("krishiPulseLanguage") || "en";
+$("#languageSelect").value = savedLanguage;
+applyLanguage(savedLanguage);
+addVoiceInputs();
+bootSimulation();
+$("#guideSpeak").addEventListener("click", () => speak(voiceText("guideSpeech", "Choose a field, tap the microphone, and speak your answer. I will fill the form for you.")));
+if(savedUser){ $("#loginUser").value = savedUser; enterWorkspace(savedUser); }
+</script>
+</body>
+</html>
